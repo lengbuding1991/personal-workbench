@@ -41,7 +41,7 @@ ENV NODE_ENV=production \
     WORKBENCH_DATA_DIR=/data \
     WORKBENCH_SEED=0
 
-RUN apk add --no-cache libc6-compat tini \
+RUN apk add --no-cache libc6-compat tini su-exec \
  && addgroup -g 1001 -S nodejs \
  && adduser -u 1001 -S nextjs -G nodejs
 
@@ -50,17 +50,23 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# 入口脚本先以 root 修 /data 的属主，再降到 nextjs 跑应用。
+# 原因：NAS 图形界面建的宿主机目录是 root 的，不改属主首次建库就 EACCES。
+COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # 数据放卷里，容器重建不丢
 RUN mkdir -p /data/backups && chown -R nextjs:nodejs /data
 VOLUME ["/data"]
 
-USER nextjs
 EXPOSE 3100
 
 # 健康检查直接打应用自己的 /api/health（无鉴权）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3100)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# tini 做 1 号进程，容器能干净地收到 SIGTERM
-ENTRYPOINT ["/sbin/tini", "--"]
+# tini 做 1 号进程，容器能干净地收到 SIGTERM。
+# 入口脚本以 root 起（这样才有权限 chown /data），最后 exec su-exec 降权。
+USER root
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

@@ -285,7 +285,8 @@ export function getDb(): DatabaseSync {
 
   const count = (db.prepare("SELECT COUNT(*) AS n FROM task").get() as { n: number }).n;
   const initialized = (db.prepare("SELECT value FROM setting WHERE key = 'initialized'").get() as { value?: string } | undefined)?.value;
-  if (count === 0 && initialized !== "1") seed(db);
+  // WORKBENCH_SEED=0 让线上首启是干净的空库（不带示例任务）
+  if (count === 0 && initialized !== "1" && process.env.WORKBENCH_SEED !== "0") seed(db);
   db.prepare("INSERT INTO setting (key, value) VALUES ('initialized', '1') ON CONFLICT(key) DO UPDATE SET value = '1'").run();
 
   g.__workbenchDb = db;

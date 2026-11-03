@@ -47,6 +47,21 @@ function fail(key: string) {
   return Math.max(0, LIMIT - rec.count);
 }
 
+/**
+ * cookie 选项。
+ *
+ * secure 必须跟着「这次请求是不是 https」走，不能一刀切：
+ *   · 线上 https：必须开，否则 cookie 会走明文
+ *   · 本机 http：必须关，开了浏览器会直接丢弃 Set-Cookie，登录看似成功却一直跳回登录页
+ * 反代（nginx）会带 x-forwarded-proto，据此判断最稳。
+ */
+function cookieOpts(req: Request) {
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const https = proto ? proto === "https" : new URL(req.url).protocol === "https:";
+  const secure = process.env.WB_SECURE_COOKIE === "1" || https;
+  return { httpOnly: true, sameSite: "lax" as const, path: "/", maxAge: SESSION_MAX_AGE, secure };
+}
+
 const Body = z.object({
   password: z.string().min(1).max(200),
   /** 首次设置密码时，要输两遍 */
@@ -77,13 +92,7 @@ export async function POST(req: Request) {
     const hash = hashPassword(password);
     setPasswordHash(hash);
     const res = NextResponse.json({ ok: true, created: true });
-    res.cookies.set(COOKIE_NAME, makeSessionValue(hash), {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,
-      secure: process.env.WB_SECURE_COOKIE === "1",
-    });
+    res.cookies.set(COOKIE_NAME, makeSessionValue(hash), cookieOpts(req));
     return res;
   }
 
@@ -98,13 +107,7 @@ export async function POST(req: Request) {
 
   attempts.delete(key);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE_NAME, makeSessionValue(stored), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-    secure: process.env.WB_SECURE_COOKIE === "1",
-  });
+  res.cookies.set(COOKIE_NAME, makeSessionValue(stored), cookieOpts(req));
   return res;
 }
 
@@ -141,13 +144,7 @@ export async function PATCH(req: Request) {
   const res = NextResponse.json({ ok: true });
   // 密码哈希变了 → 旧的签名密钥也变了，这里必须换发新 cookie，
   // 否则当前这台设备会被自己踢下线
-  res.cookies.set(COOKIE_NAME, makeSessionValue(hash), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-    secure: process.env.WB_SECURE_COOKIE === "1",
-  });
+  res.cookies.set(COOKIE_NAME, makeSessionValue(hash), cookieOpts(req));
   return res;
 }
 

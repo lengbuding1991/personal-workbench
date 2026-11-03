@@ -17,7 +17,7 @@ const COOKIE_NAME = "wb_session";
 /** 标记「已经设置过密码」的 cookie，登录页据此决定显示「设置密码」还是「输入密码」 */
 const SETUP_COOKIE = "wb_setup";
 
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health"];
 
 function isPublic(pathname: string) {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;

@@ -10,3 +10,7 @@ data/backups
 # screenshots & design snapshots (large binaries, not part of the app)
 /screens/
 /prototypes/screens/
+
+# 部署时服务器上的运行时状态
+.deployed-sha
+.update-status.json

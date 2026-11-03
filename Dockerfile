@@ -14,7 +14,7 @@ FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 # libc6-compat 是 Next 在 alpine 上跑 SWC / sharp 的前提
 RUN apk add --no-cache libc6-compat
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN corepack enable && corepack prepare pnpm@12.15.0 --activate \
  && pnpm install --frozen-lockfile
 

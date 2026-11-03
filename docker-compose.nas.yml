@@ -1,0 +1,54 @@
+# 个人工作台 —— Docker Compose（NAS 用，不需要自己构建）
+#
+# 镜像由 GitHub Actions 预先构建好（.github/workflows/docker.yml），
+# NAS 上的 UGOS Pro「项目」页面只需要 docker pull，不需要 build。
+#
+# 用法：绿联云客户端 → Docker → 项目 → 创建 → 上传/粘贴这个文件 → 立即部署
+#
+# 数据在 ./data（容器里的 /data），备份在 ./data/backups。
+# 想迁移或备份，直接拷这个目录。
+
+services:
+  workbench:
+    # 预构建的 arm64 镜像（NAS 是 RK3588，aarch64）
+    image: ghcr.io/lengbuding1991/personal-workbench:latest
+    container_name: workbench
+    restart: unless-stopped
+
+    # 容器内部固定监听 3100，这里只把它暴露给 NAS 本机与局域网。
+    # CF Tunnel 会从 NAS 内部连 localhost:3100。
+    ports:
+      - "3100:3100"
+
+    volumes:
+      # 数据库 + 每日备份，全在这一个目录里
+      - ./data:/data
+      # 固定时区：工作台的「今天」「本周」全靠本地时间
+      - /etc/localtime:/etc/localtime:ro
+
+    environment:
+      TZ: Asia/Shanghai
+      # 首启不要灌示例数据，从空库开始
+      WORKBENCH_SEED: "0"
+      # 走 CF Tunnel 时外面是 https，必须开 1，否则登录 cookie 会被浏览器丢掉
+      WB_SECURE_COOKIE: "1"
+
+    # NAS 8G 还要跑别的服务，给个上限防止失控
+    mem_limit: 1500m
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,227 @@
+#!/usr/bin/env node
+/**
+ * 把本地提交推到 GitHub —— 走 api.github.com 的 Git Data API。
+ *
+ * 为什么不用 `git push`：
+ *   这台机器到 github.com:443 的 TLS 握手会被中断（TCP 通、握手被掐），
+ *   `git push` / `git ls-remote` 会一直挂着直到超时。
+ *   但 api.github.com 是通的，所以用 REST API 手工建 blob → tree → commit → 更新分支引用。
+ *
+ * 用法：
+ *   node scripts/push-to-github.mjs                 # 推 main，默认仓库见下
+ *   node scripts/push-to-github.mjs --dry           # 只打印要推什么
+ *
+ * token 来源（按顺序）：
+ *   $GH_TOKEN  →  ~/.dsh/workbench-token  →  ~/.dsh/deng-stock-token
+ * 文件内容只放 token 本身，chmod 600。
+ */
+
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const REPO = process.env.GH_REPO ?? "lengbuding1991/personal-workbench";
+const BRANCH = process.env.GH_BRANCH ?? "main";
+const API = "https://api.github.com";
+const DRY = process.argv.includes("--dry");
+const CONCURRENCY = 3; // api.github.com 并发高了会被掐连接
+
+function readToken() {
+  const candidates = [
+    process.env.GH_TOKEN,
+    path.join(os.homedir(), ".dsh", "workbench-token"),
+    path.join(os.homedir(), ".dsh", "deng-stock-token"),
+  ];
+  for (const c of candidates) {
+    if (!c) continue;
+    try {
+      const t = fs.readFileSync(c, "utf8").trim();
+      if (t) return t;
+    } catch {
+      /* 下一个 */
+    }
+  }
+  return "";
+}
+
+const TOKEN = readToken();
+if (!TOKEN) {
+  console.error("没有 token。写进 ~/.dsh/workbench-token（chmod 600），或用 GH_TOKEN=... 传进来。");
+  process.exit(1);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** api.github.com 偶发掐长连接，失败退避重试 */
+async function gh(pathname, init = {}, tries = 6) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(`${API}${pathname}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          "User-Agent": "workbench-push",
+          ...(init.headers ?? {}),
+        },
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`${init.method ?? "GET"} ${pathname} → ${res.status} ${text.slice(0, 300)}`);
+      return text ? JSON.parse(text) : null;
+    } catch (e) {
+      const msg = String(e?.message ?? e);
+      const retriable = /UND_ERR_SOCKET|other side closed|ECONNRESET|fetch failed|502|503|504|timeout/i.test(msg);
+      if (!retriable || i === tries - 1) throw e;
+      console.log(`  重试 ${i + 1}/${tries - 1}（${msg.slice(0, 60)}）`);
+      await sleep(800 * (i + 1));
+    }
+  }
+}
+
+const root = execSync("git rev-parse --show-toplevel").toString().trim();
+const git = (cmd) => execSync(cmd, { cwd: root, maxBuffer: 64 * 1024 * 1024 }).toString();
+
+/* 远端已有哪个提交？本地从它之后开始补 */
+let remoteHead = null;
+try {
+  const ref = await gh(`/repos/${REPO}/git/ref/heads/${BRANCH}`);
+  remoteHead = ref.object.sha;
+} catch (e) {
+  if (!/→ 404/.test(String(e.message))) throw e;
+}
+
+/**
+ * 用 API 推上去的提交，sha 跟本地不一样（作者/时间戳都要重新拼）。
+ * 所以本地记一份「远端 sha ↔ 本地 sha」对照，下次才知道从哪儿接着推。
+ */
+const MAP_FILE = path.join(root, ".git", "github-pushed.json");
+function readMap() {
+  try {
+    return JSON.parse(fs.readFileSync(MAP_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+function writeMap(m) {
+  fs.writeFileSync(MAP_FILE, JSON.stringify(m, null, 2));
+}
+const syncMap = readMap();
+
+const allCommits = git("git rev-list --reverse HEAD").trim().split("\n");
+/** 远端 head 对应本地哪个提交：本地直接有就用，否则查对照表 */
+function localIndexOf(remoteSha) {
+  if (!remoteSha) return -1;
+  const direct = allCommits.indexOf(remoteSha);
+  if (direct >= 0) return direct;
+  const mapped = syncMap[remoteSha];
+  return mapped ? allCommits.indexOf(mapped) : -1;
+}
+
+let startIdx = remoteHead ? localIndexOf(remoteHead) + 1 : 0;
+if (remoteHead && startIdx === 0) {
+  console.error(
+    `远端 head ${remoteHead.slice(0, 7)} 在本地找不到，也没有对照记录。\n` +
+      `如果确认远端内容就等于本地某个提交，用 --base=<本地sha> 指定，然后重跑。`,
+  );
+  const forced = process.argv.find((a) => a.startsWith("--base="));
+  if (!forced) process.exit(2);
+  const base = forced.split("=")[1];
+  const idx = allCommits.indexOf(base);
+  if (idx < 0) {
+    console.error(`--base=${base} 不是本地提交。`);
+    process.exit(2);
+  }
+  startIdx = idx + 1;
+}
+const todo = allCommits.slice(startIdx);
+console.log(`${REPO}#${BRANCH}：远端 ${remoteHead?.slice(0, 7) ?? "空"}，待推 ${todo.length} 个提交`);
+if (todo.length === 0) {
+  console.log("已经是最新的。");
+  process.exit(0);
+}
+if (DRY) {
+  for (const c of todo) console.log("  ", c.slice(0, 7), git(`git log -1 --pretty=%s ${c}`).trim());
+  process.exit(0);
+}
+
+/** 取某个提交里某文件的原始字节 */
+function fileAt(commit, rel) {
+  return execSync(`git cat-file blob ${commit}:${rel}`, { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+}
+
+let parentSha = remoteHead;
+let parentTree = null;
+if (remoteHead) {
+  const c = await gh(`/repos/${REPO}/git/commits/${remoteHead}`);
+  parentTree = c.tree.sha;
+}
+
+for (const commit of todo) {
+  const prev = parentSha;
+  const files = git(`git ls-tree -r -z --name-only ${commit}`).split("\0").filter(Boolean);
+
+  let changed = files;
+  if (prev) {
+    const changedRaw = execSync(`git diff --name-only -z ${prev} ${commit}`, {
+      cwd: root,
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .toString()
+      .split("\0")
+      .filter(Boolean);
+    changed = changedRaw;
+  }
+  console.log(`${commit.slice(0, 7)}：${files.length} 个文件，变更 ${changed.length}`);
+
+  const entries = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < changed.length) {
+      const rel = changed[cursor++];
+      const buf = fileAt(commit, rel);
+      const blob = await gh(`/repos/${REPO}/git/blobs`, {
+        method: "POST",
+        body: JSON.stringify({ content: buf.toString("base64"), encoding: "base64" }),
+      });
+      entries.push({ path: rel, mode: "100644", type: "blob", sha: blob.sha });
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+  const tree = await gh(`/repos/${REPO}/git/trees`, {
+    method: "POST",
+    body: JSON.stringify(parentTree ? { base_tree: parentTree, tree: entries } : { tree: entries }),
+  });
+
+  const message = execSync(`git log -1 --pretty=%B ${commit}`, { cwd: root }).toString().trim();
+  const created = await gh(`/repos/${REPO}/git/commits`, {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      tree: tree.sha,
+      ...(parentSha ? { parents: [parentSha] } : {}),
+    }),
+  });
+
+  parentSha = created.sha;
+  parentTree = tree.sha;
+  syncMap[created.sha] = commit;
+  writeMap(syncMap);
+  console.log(`  → ${created.sha.slice(0, 7)}`);
+}
+
+if (remoteHead) {
+  await gh(`/repos/${REPO}/git/refs/heads/${BRANCH}`, {
+    method: "PATCH",
+    body: JSON.stringify({ sha: parentSha, force: true }),
+  });
+} else {
+  await gh(`/repos/${REPO}/git/refs`, {
+    method: "POST",
+    body: JSON.stringify({ ref: `refs/heads/${BRANCH}`, sha: parentSha }),
+  });
+}
+
+console.log(`完成 → https://github.com/${REPO}/tree/${BRANCH}`);

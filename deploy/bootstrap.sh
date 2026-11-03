@@ -67,7 +67,7 @@ done
 mkdir -p "$APP_DIR"
 # data/ 单独留着：快照里本来就没有，这里再排除一次是双保险
 tar -xzf "$TARBALL" -C "$APP_DIR" --strip-components=1 \
-  --exclude='./data/*' --exclude='./data'
+  --exclude='*/data' --exclude='*/data/*'
 rm -f "$TARBALL"
 printf '%s' "$SHA" > "$APP_DIR/.deployed-sha"
 echo "  → ${APP_DIR}（${SHA:0:7}）"

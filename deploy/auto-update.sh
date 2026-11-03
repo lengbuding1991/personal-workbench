@@ -88,17 +88,30 @@ if [ "$DL_OK" != 1 ]; then
   exit 0
 fi
 
+# 回滚：重新下上一版快照覆盖回去并重启。
+# 线上没有 .git（代码是解压来的，不是 clone 的），所以不能用 git reset。
 rollback() {
-  log "❌ $1 —— 回滚到 ${OLD:0:7}"
-  stat error "$1（已回滚到 ${OLD:0:7}）"
-  if [ -n "$OLD" ] && [ -d "$APP_DIR/.git" ]; then
-    git -C "$APP_DIR" reset --hard -q "$OLD" 2>>"$LOG"
-    chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
-    sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false" >>"$LOG" 2>&1
-    sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
-    printf '%s' "$OLD" > "$APP_DIR/.deployed-sha"
-    systemctl restart "$SERVICE"
-    log "已回滚，服务恢复到 ${OLD:0:7}"
+  log "❌ $1 —— 尝试回滚到 ${OLD:0:7}"
+  stat error "$1（回滚到 ${OLD:0:7}）"
+  if [ -n "$OLD" ]; then
+    local RB
+    RB="$(mktemp /tmp/workbench-rb-XXXXXX.tar.gz)"
+    if curl -fsSL --max-time 300 "${AUTH[@]}" -o "$RB" \
+         "https://codeload.github.com/${REPO}/tar.gz/${OLD}" 2>>"$LOG" && [ -s "$RB" ]; then
+      tar -xzf "$RB" -C "$APP_DIR" --strip-components=1 \
+        --exclude='*/data' --exclude='*/data/*' \
+        --exclude='*/.next' --exclude='*/node_modules' >>"$LOG" 2>&1
+      rm -f "$RB"
+      chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
+      sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false" >>"$LOG" 2>&1
+      sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
+      printf '%s' "$OLD" > "$APP_DIR/.deployed-sha"
+      systemctl restart "$SERVICE"
+      log "已回滚，服务恢复到 ${OLD:0:7}"
+    else
+      rm -f "$RB"
+      log "❌ 回滚包也没下下来，服务保持现状（上一版代码已被覆盖一部分，请人工介入）"
+    fi
   else
     log "没有可回滚的旧版本（首次部署？），服务保持现状"
   fi
@@ -109,8 +122,8 @@ rollback() {
 # 只覆盖源码目录；data/、node_modules/、.next/ 都不在 tarball 里/被排除。
 # 注意：删掉的文件不会跟着消失（快照覆盖的固有缺点），但不会把线上 data/ 打掉。
 tar -xzf "$TARBALL" -C "$APP_DIR" --strip-components=1 \
-  --exclude='./data/*' --exclude='./data' \
-  --exclude='./.next' --exclude='./node_modules' >>"$LOG" 2>&1 \
+  --exclude='*/data' --exclude='*/data/*' \
+  --exclude='*/.next' --exclude='*/node_modules' >>"$LOG" 2>&1 \
   || rollback "解压失败"
 rm -f "$TARBALL"
 printf '%s' "$NEW" > "$APP_DIR/.deployed-sha"
@@ -119,7 +132,7 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false" >>"$LOG" 2>&1 \
   || rollback "装依赖失败"
 
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
   || rollback "构建失败"
 
 # 保证数据目录还在（首次部署时由 setup.sh 建好）

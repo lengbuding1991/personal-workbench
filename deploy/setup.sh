@@ -174,14 +174,16 @@ systemctl enable workbench >/dev/null
 systemctl restart workbench
 
 chmod +x "$APP_DIR"/deploy/*.sh 2>/dev/null || true
-for u in update-check.service update-check.timer; do
+for u in workbench-update.service workbench-update.timer; do
   [ -f "$APP_DIR/deploy/$u" ] || continue
   sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__NODE_BIN__|$NODE_BIN|g" \
       "$APP_DIR/deploy/$u" > "/etc/systemd/system/$u"
 done
 systemctl daemon-reload
-systemctl enable --now update-check.timer >/dev/null 2>&1 || \
-  warn "update-check.timer 没装上，代码不会自动更新"
+systemctl enable --now workbench-update.timer >/dev/null 2>&1 || \
+  warn "workbench-update.timer 没装上，代码不会自动更新"
+# 提醒：别和发货库存的 update-check.timer 混了，那是另一套
+systemctl list-timers --all 2>/dev/null | grep -E "workbench|deng-stock" || true
 
 CONF=/etc/nginx/conf.d/workbench.conf
 [ -d /etc/nginx/sites-available ] && CONF=/etc/nginx/sites-available/workbench.conf

@@ -411,7 +411,7 @@ export default function Dashboard({
                 ))}
               </div>
               <p>
-                {invest[0].pct > 0 ? (
+                {invest[0]?.pct ? (
                   <>这周你在 <b>{invest[0].label}</b> 上花的时间最多，占 {invest[0].pct}%。</>
                 ) : (
                   <>本周还没有排期，先给一件事留个时间块。</>

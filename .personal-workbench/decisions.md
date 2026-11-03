@@ -119,3 +119,14 @@ Append dated, confirmed decisions below. Do not rewrite earlier entries silently
 - 凌晨不显空的做法：0–6 点每列加淡灰蓝渐变带 `.cal2-night` + 刻度用更浅的灰与点线；同时把「空闲 N 小时」徽标限制在 7:00–23:00（`GAP_START` / `GAP_END`），避免凌晨被标成大片空闲。
 - 初始滚动改为「当前时间往前 3 小时」，取代原来固定早上 8 点。
 - 验收：`/tmp/cal4.mjs` 在 `scrollTop=0` 时确认 `00:00` 可见且 gutter 与全天行不重叠（283/283）；周/日/390px 三张截图复查。
+
+## 2026-11-03 — 第八轮：登录与访问控制
+
+- 用户：「你先更新下登录功能，登录后才能看」。单人工作台，只需要一道门，不需要角色权限。
+- 决定：**单密码 + 自校验 cookie，不建 session 表**。密码 scrypt（N=16384/r=8/p=1）哈希存 `setting.auth_hash`；cookie 值 `<过期戳>.<HMAC>`，HMAC 密钥由密码哈希派生 —— 改密码即让所有旧 cookie 失效，不用维护失效名单。
+- 分层：`middleware.ts`（edge）只粗筛 cookie 是否存在/过期；真实验签在 `app/(app)/layout.tsx` 与 `lib/auth.ts:requireAuth()`（那里能读 SQLite）。
+- 路由重组：页面全部搬进 `app/(app)/`，`app/layout.tsx` 只留 html/body + 备份触发，`components/AppShell.tsx` 承载侧栏与全局弹层 —— 登录页因此不带侧栏。
+- API 全部加锁：14 个路由的每个 handler 首行 `requireAuth()`，未登录 401，避免绕页面直接取数。
+- 顺带修 bug：清空数据后首页 `TypeError: Cannot read properties of undefined (reading 'pct')`，`components/Dashboard.tsx` 的 `invest[0].pct` 改 `invest[0]?.pct`。
+- 坑：`Set-Cookie` 带 `secure` 时本机 http 会被浏览器丢弃，登录「成功」却跳回登录页；改为 `WB_SECURE_COOKIE=1` 才开启。
+- 节流：同 IP 10 分钟错 6 次锁 10 分钟；密码错误文案逐次递减。

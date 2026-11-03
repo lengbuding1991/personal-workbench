@@ -30,6 +30,33 @@ export default function SettingsApp({
   const [testMsg, setTestMsg] = useState("");
   const [importing, setImporting] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
+
+  const changePw = async () => {
+    if (newPw.length < 6) return setPwMsg("新密码至少 6 位");
+    setPwBusy(true);
+    setPwMsg("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current: curPw, password: newPw }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPwMsg("已更新，这台设备不用重新登录");
+        setCurPw("");
+        setNewPw("");
+      } else {
+        setPwMsg(d.error || "修改失败");
+      }
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -165,6 +192,17 @@ export default function SettingsApp({
             <button className="b2" onClick={testAi} disabled={testing}>{testing ? "测试中…" : "测试连接"}</button>
             {testMsg && <span className="hint2" style={{ color: testMsg.startsWith("连接成功") ? "#2E8C77" : "#D2795C" }}>{testMsg}</span>}
             {msg && <span className="hint2" style={{ color: msg.includes("失败") ? "#D2795C" : "#2E8C77" }}>{msg.includes("已保存") && <Check size={10} style={{ verticalAlign: -1 }} />} {msg}</span>}
+          </div>
+
+          <h2 style={{ marginTop: 20 }}>登录密码</h2>
+          <p className="sub">别人打开这个地址时要先输密码。改完这台设备会自动续上，不用重新登录。</p>
+          <div className="form">
+            <label>当前密码<input type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} placeholder="现在的密码" /></label>
+            <label>新密码<input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="至少 6 位" /></label>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="b2" onClick={changePw} disabled={pwBusy}>{pwBusy ? "改中…" : "修改密码"}</button>
+            {pwMsg && <span className="hint2" style={{ color: pwMsg.includes("失败") || pwMsg.includes("不对") || pwMsg.includes("至少") ? "#D2795C" : "#2E8C77" }}>{pwMsg}</span>}
           </div>
 
           <div style={{ marginTop: "auto", paddingTop: 20 }}>

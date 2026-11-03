@@ -12,6 +12,7 @@ import {
   ChartNoAxesColumn,
   Search,
   Settings,
+  LogOut,
 } from "lucide-react";
 
 const items = [
@@ -69,10 +70,21 @@ export default function Sidebar({ userName }: { userName: string }) {
 
       <div className="side-foot">
         <div className="ava">{userName.slice(0, 1).toUpperCase()}</div>
-        <div>
+        <div className="sf-meta">
           <b>{userName}</b>
-          <span>本地 · 未登录</span>
+          <span>已登录 · 本机</span>
         </div>
+        <button
+          className="sf-out"
+          title="退出登录"
+          aria-label="退出登录"
+          onClick={async () => {
+            await fetch("/api/auth", { method: "DELETE" });
+            window.location.href = "/login";
+          }}
+        >
+          <LogOut size={14} />
+        </button>
       </div>
     </aside>
   );

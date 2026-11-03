@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDb, setSetting } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const db = getDb();
   db.exec("BEGIN");
   try {

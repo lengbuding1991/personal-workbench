@@ -4,6 +4,7 @@ import { chatJson } from "@/lib/ai";
 import { getSetting } from "@/lib/db";
 import { getDb } from "@/lib/db";
 import { addDays, format, startOfWeek } from "date-fns";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   const { action, text, type } = parsed.data;

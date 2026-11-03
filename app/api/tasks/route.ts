@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, nowIso } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ const Create = z.object({
 });
 
 export async function GET(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const q = url.searchParams.get("q");
@@ -40,6 +43,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const body = await req.json();
   const parsed = Create.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "参数不合法", detail: parsed.error.flatten() }, { status: 400 });

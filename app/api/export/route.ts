@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const db = getDb();
   const tables = ["task", "event", "note", "review", "project", "external_ref"];
   const data: Record<string, unknown> = {

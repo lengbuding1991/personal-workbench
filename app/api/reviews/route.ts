@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, nowIso } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,11 +17,15 @@ const Save = z.object({
 });
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const rows = getDb().prepare("SELECT * FROM review ORDER BY date DESC LIMIT 30").all();
   return NextResponse.json({ reviews: rows });
 }
 
 export async function POST(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const parsed = Save.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   const t = parsed.data;

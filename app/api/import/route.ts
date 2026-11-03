@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, nowIso } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ const num = (v: unknown) => (typeof v === "number" ? v : null);
 const opt = (v: unknown) => (typeof v === "string" ? v : null);
 
 export async function POST(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   let data: Any;
   try {
     data = (await req.json()) as Any;

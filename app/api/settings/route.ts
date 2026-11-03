@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, setSetting } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ function readAll() {
 }
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const s = readAll();
   return NextResponse.json({
     user_name: s.user_name ?? "Hina",
@@ -30,6 +33,8 @@ const Patch = z.object({
 });
 
 export async function PATCH(req: Request) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const parsed = Patch.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   for (const [k, v] of Object.entries(parsed.data)) {

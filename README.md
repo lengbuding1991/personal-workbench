@@ -2,7 +2,7 @@
 
 一个人的「人生工作台」：每天打开它安排今天，做完记一笔，周末回头看。本地优先，数据在自己电脑上。
 
-清透蓝绿视觉（成长总览风格），Next.js + SQLite，单用户，无需登录。
+清透蓝绿视觉（成长总览风格），Next.js + SQLite，单用户 + 密码登录。
 
 ![首页](docs/screens/home.webp)
 
@@ -21,6 +21,16 @@
 - **拖拽**：任务面板与首页看板的卡片按住就能拖到「待办 / 进行中 / 完成」另一列，松手即改状态；目标列会高亮。
 - **版面**：卡片网格与看板按内容自适应，空列底部是「＋ 添加任务」虚线卡；记录页左栏底部有「本月记录 / 每周记录数 / 常用标签」小面板。
 - **任务页收尾区**：看板下面还有「最近七天收尾节奏」（横向进度行）与「刚刚做完的」（最近完成 4 条 + 补位提示），整页一屏铺满、不留大块空白。
+- **登录**：单密码进入，页面与 API 全部需登录；会话 cookie 由密码哈希派生签名，改密码即刻踢掉其他设备。
+
+## 登录
+
+首次打开会要求设置一个密码（至少 6 位，只存在本机数据库里，没有找回入口）；之后每次打开都要输一次。
+
+- 会话保持 24 小时，过期后自动跳回登录页，登录完回到原来那页。
+- 同一 IP 10 分钟内输错 6 次会锁 10 分钟。
+- 改密码在「设置 → 登录密码」；改完这台设备不用重新登录，其他设备上的旧会话会立刻失效。
+- 侧栏底部有退出按钮。密码不是多用户体系，只有一个密码，用来挡住「别人打开这个地址」。
 
 ## 快速开始
 
@@ -64,11 +74,17 @@ pnpm start        # http://localhost:3100
 
 ```
 app/
-  page.tsx              今日行动
-  tasks/ calendar/ notes/ review/ ai/ stats/ settings/ search/
-  api/                  tasks notes events reviews search settings export import reminders ai
+  layout.tsx            根布局（html/body + 备份触发）
+  login/                登录页（独立于应用外壳）
+  (app)/                需登录的应用区：layout.tsx 验签 + 侧栏外壳
+    page.tsx            今日行动
+    tasks/ calendar/ notes/ review/ ai/ stats/ settings/ search/
+  api/                  tasks notes events reviews search settings export import reminders ai auth
 components/             Dashboard, TasksPage, CalendarApp, NotesApp, ReviewApp, AiApp, StatsApp, SettingsApp,
-                        Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal
+                        Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal,
+                        AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
+middleware.ts           粗筛 cookie（真实验签在 (app)/layout.tsx，因为 edge 读不到 SQLite）
+lib/auth.ts             scrypt 密码哈希 + HMAC 会话 cookie + requireAuth()
 lib/db.ts               schema、迁移、seed、设置、每日备份
 lib/use-tasks.ts        任务本地状态、乐观更新、删除撤销
 lib/use-pointer-drag.ts 通用指针拖拽（鼠标 5px/触屏长按 220ms 起拖）
@@ -83,7 +99,7 @@ docs/screens/           README 用的截图（webp，压缩过）
 
 ## 边界（V1 不做）
 
-- 不做登录/多用户、云同步、原生 App、团队协作。
+- 不做多用户 / 角色权限、云同步、原生 App、团队协作（只有单一入口密码）。
 - 关掉页面后不会推送提醒（需要部署 + Web Push，V2）。
 - 知识库只预留接口（`external_ref` 表），不内置知识库。
 - 习惯、记账、学习、自媒体、项目等模块暂不做，当前是通用底座。

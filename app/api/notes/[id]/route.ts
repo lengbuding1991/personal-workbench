@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, nowIso } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ const Patch = z.object({
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const { id } = await ctx.params;
   const n = Number(id);
   const parsed = Patch.safeParse(await req.json());
@@ -33,6 +36,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const { id } = await ctx.params;
   getDb().prepare("DELETE FROM note WHERE id=?").run(Number(id));
   return NextResponse.json({ ok: true });

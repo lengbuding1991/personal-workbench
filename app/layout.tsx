@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import CommandPalette from "@/components/CommandPalette";
-import QuickCapture from "@/components/QuickCapture";
-import { ConfirmProvider } from "@/components/Confirm";
-import { ToastProvider } from "@/components/Toast";
-import { getSetting, ensureBackup } from "@/lib/db";
+import { ensureBackup } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "个人工作台",
@@ -14,31 +9,19 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 根布局只负责 html/body 与全局样式。
+ * 侧栏等应用外壳在 `app/(app)/layout.tsx`，因此登录页 `/login` 不会带出侧栏。
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  let name = "Hina";
   try {
-    name = getSetting("user_name", "Hina");
     ensureBackup();
   } catch {
     // 数据库尚未初始化时不让布局崩溃
   }
   return (
     <html lang="zh-CN">
-      <body>
-        <ToastProvider>
-          <ConfirmProvider>
-            <div className="blobs" aria-hidden>
-              <i className="b1" />
-              <i className="b2" />
-              <i className="b3" />
-            </div>
-            <Sidebar userName={name} />
-            <main>{children}</main>
-            <CommandPalette />
-            <QuickCapture />
-          </ConfirmProvider>
-        </ToastProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

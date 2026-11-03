@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { addHours, format, parseISO } from "date-fns";
 import { getDb, type EventRow, type Task } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate) return gate;
   const db = getDb();
   const now = new Date();
   const today = format(now, "yyyy-MM-dd");

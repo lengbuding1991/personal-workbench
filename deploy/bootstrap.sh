@@ -16,7 +16,7 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:?请指定 DOMAIN，例如 DOMAIN=workbench.example.com}"
-GH_TOKEN="${GH_TOKEN:?请指定 GH_TOKEN（GitHub PAT）}"
+GH_TOKEN="${GH_TOKEN:-}"
 REPO="${REPO:-lengbuding1991/personal-workbench}"
 APP_DIR="${APP_DIR:-/opt/workbench}"
 TOKEN_FILE="${TOKEN_FILE:-/etc/workbench/git-token}"
@@ -38,11 +38,30 @@ fi
 
 say "2/4 写 GitHub token"
 mkdir -p "$(dirname "$TOKEN_FILE")"
-printf '%s' "$GH_TOKEN" > "$TOKEN_FILE"
-chmod 600 "$TOKEN_FILE"
-echo "  → ${TOKEN_FILE}"
+if [ -n "$GH_TOKEN" ]; then
+  printf '%s' "$GH_TOKEN" > "$TOKEN_FILE"
+  chmod 600 "$TOKEN_FILE"
+  echo "  → ${TOKEN_FILE}"
+elif [ -f "$TOKEN_FILE" ]; then
+  echo "  已有 ${TOKEN_FILE}，沿用"
+else
+  echo "  没有 token：自动更新会问不到版本（可以先部署，之后补）" >&2
+fi
 
 say "3/4 下载代码快照"
+# 如果调用方已经手动把快照解到 APP_DIR 了（部署指南里的那条长命令），
+# 这里就不用再下一遍——源码已经在位，直接进 setup.sh。
+if [ -f "$APP_DIR/deploy/setup.sh" ] && [ "${FORCE_DOWNLOAD:-0}" != "1" ]; then
+  echo "  源码已在 ${APP_DIR}，跳过多余下载"
+  SHA="$(tr -d '\r\n' < "$APP_DIR/.deployed-sha" 2>/dev/null || echo '')"
+  SHA="${SHA:-downloaded}"
+  cd "$APP_DIR"
+  echo
+  say "4/4 交给 setup.sh"
+  exec bash deploy/setup.sh "$DOMAIN"
+fi
+
+[ -n "$GH_TOKEN" ] || { echo "  需要 GH_TOKEN 才能下载快照" >&2; exit 1; }
 SHA="$(curl -fsS --max-time 25 -H "Authorization: token ${GH_TOKEN}" \
         "https://api.github.com/repos/${REPO}/commits/${BRANCH}" \
       | sed -n 's/.*"sha": *"\([0-9a-f]\{40\}\)".*/\1/p' | head -1)"

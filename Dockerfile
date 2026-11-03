@@ -9,6 +9,10 @@
 # 具体版本（例如 24.22.1-alpine），先确认 hub 上有这个 tag。
 ARG NODE_VERSION=24-alpine
 
+# 构建时把提交 sha 塞进镜像，/api/health 会原样返回，
+# 这样你在 NAS 上跑 curl localhost:3100/api/health 就知道更新到哪一版了。
+ARG WORKBENCH_SHA=dev
+
 # ---------- 1. 依赖 ----------
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
@@ -33,13 +37,16 @@ RUN corepack enable && corepack prepare pnpm@12.15.0 --activate \
 # ---------- 3. 运行 ----------
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
+# 全局 ARG 要在每个 stage 里重新声明一次才能用
+ARG WORKBENCH_SHA=dev
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3100 \
     HOSTNAME=0.0.0.0 \
     WORKBENCH_DATA_DIR=/data \
-    WORKBENCH_SEED=0
+    WORKBENCH_SEED=0 \
+    WORKBENCH_SHA=${WORKBENCH_SHA}
 
 RUN apk add --no-cache libc6-compat tini su-exec \
  && addgroup -g 1001 -S nodejs \

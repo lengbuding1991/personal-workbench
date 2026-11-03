@@ -115,13 +115,23 @@ docs/screens/           README 用的截图（webp，压缩过）
 
 ## 部署
 
-完整步骤见 [部署指南.md](部署指南.md)。一句话版本：
+两种方式，**推荐 Docker（绿联 NAS）**。
 
-1. 域名加一条 A 记录指向服务器；
-2. 服务器上跑一次 `deploy/bootstrap.sh`（装 Node、nginx、证书，注册 systemd）；
-3. 以后本机 `pnpm push`，服务器每 5 分钟自动拉新版本、构建、重启，失败自动回滚。
+### 方式一：Docker / 绿联 NAS（当前线上）
 
-应用跑在 `127.0.0.1:3200`，由 nginx 反代到 80/443。数据在 `/opt/workbench/data/`，永不被代码覆盖。
+完整步骤见 [部署指南-NAS.md](部署指南-NAS.md)。一句话版本：
+
+1. NAS 上拉 `ghcr.io/lengbuding1991/personal-workbench:latest`（公开包，匿名可拉）；
+2. 粘贴 [docker-compose.nas.yml](docker-compose.nas.yml)，一次起 `workbench` + `watchtower` 两个容器；
+3. 以后本机 `pnpm push` → GitHub Actions 构建 arm64 镜像 → watchtower 每 5 分钟自动拉取重建。
+
+数据在 NAS 的 `/volume1/docker/workbench/data`（容器里是 `/data`），重建容器不影响。
+`watchtower` 只更新打了 `com.centurylinklabs.watchtower.enable=true` 标签的容器，不碰 NAS 上其它服务。
+
+### 方式二：普通 Linux 服务器（阿里云那套，已弃用但脚本还在）
+
+见 [部署指南.md](部署指南.md)。`deploy/bootstrap.sh` 装 Node、nginx、证书并注册 systemd，跑在 `127.0.0.1:3200`。
+**注意**：2G 内存的机器构建 Next 会 OOM（exit 137），脚本虽然加了 swap + flock + 内存预检，但实测仍会拖垮整机 —— 这就是迁到 NAS 的原因。
 
 ## 推送到 GitHub
 

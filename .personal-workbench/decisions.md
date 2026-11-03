@@ -165,3 +165,21 @@ http 下直接丢掉 cookie，登录看似成功却一直跳回登录页（本�
   两条路都失败（后者 500 `TypeError: Invalid URL`）。最终把页面跳转挪到 `app/(app)/layout.tsx`，
   用 `redirect('/login')` 发相对 307；middleware 只保留 API 401 与 `x-wb-next` 透传。
 - **Cloudflare 保持灰云**：解析直连服务器，证书由本机 certbot 签。开橙云需先设 Full (strict)。
+
+## 2026-11-04 — 第十一轮：迁移到绿联 NAS（Docker + watchtower）
+
+**为什么迁**：阿里云那台只有 2G 内存，`next build` 峰值把内存吃光、疯狂 swap，整机用户态卡死（内核还活着，TCP accept 正常，但所有应用都不响应），控制台「重启」都发不进关机信号，只能强制停止。加了 swap + flock + 内存预检也治不了根 —— 那台机器同时还在跑发货库存。
+
+**为什么用 Docker**：用户明确不用 SSH，只在绿联云客户端里点。UGOS Pro 有 Docker 图形界面，是唯一可行路径。
+
+**镜像怎么来**：本机是 mac（arm64）但没装 Docker，NAS 也不能 `compose build`（GUI 项目页只能 pull）。所以用 GitHub Actions 的 **原生 arm64 runner**（`ubuntu-24.04-arm`）构建并推 GHCR。第一次用 `ubuntu-latest` + QEMU 失败：`qemu: uncaught target signal 4 (Illegal instruction)` → exit 132，SWC 的原生二进制在模拟器里跑不了。
+
+**为什么要改 public**：包是 private → 匿名拉取 401。GitHub REST **没有**改包可见性的接口（各种 Accept 头都 404，GraphQL `user.packages` 返回空），只能网页点一次。仓库改 public 可以用 API（`PATCH /repos/{owner}/{repo} {"private":false}` 有效），但包不行。公开前扫过：`.gitignore` 已排除 `data/`、`/screens/`，全历史无真实 token（只有 `ghp_xxx` 占位符），101 个纯源码文件。
+
+**为什么加 watchtower**：用户要求「本地 push 完，NAS 直接更新，我打开网站就是最新」。watchtower 挂在 `ghcr.io/containrrr/watchtower`（有 linux/arm64 子清单），`WATCHTOWER_POLL_INTERVAL=300` + `WATCHTOWER_LABEL_ENABLE=true`，只更新打了 `com.centurylinklabs.watchtower.enable=true` 标签的容器，不碰 NAS 上其它服务（发货库存、下载器等）。`WATCHTOWER_CLEANUP=true` 防止 76MB 镜像越积越多把系统盘吃满。
+
+**导入 tar 的两轮失败（留给以后参考）**：
+1. 第一次打的 tar 是 OCI/containerd 布局（`blobs/sha256/…`），UGOS 导入器不认。
+2. 转成 `docker save` 老布局仍然失败 —— 真因是 macOS 的 `bsdtar` 因为文件带扩展属性，给每个成员加了 **PaxHeader** 扩展头，严格的 ustar 解析器直接判为未知格式。最后用纯 Node 手写严格 ustar（512 字节块、八进制字段、`ustar\0`+`00`、结尾两个全零块）才通过。
+
+**线上跳转 localhost 的坑**：`middleware.ts` 原本用 `req.nextUrl.clone()` 拼 `/login`，Next 在 `next start -H 127.0.0.1 -p 3200` 下把自己 origin 认成 `http://localhost:3200`，于是 307 到用户自己电脑的 3200。改用 `X-Forwarded-Host` / `Host` 也不行（Next 会改写 Host）。**最终方案：middleware 不发任何 redirect**，只把原路径写进 `x-wb-next` 请求头放行，由 `app/(app)/layout.tsx` 的服务端 `redirect("/login")` 发相对 307，浏览器按当前域名补全。

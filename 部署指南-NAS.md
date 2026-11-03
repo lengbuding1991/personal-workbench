@@ -9,33 +9,45 @@
 
 三件事，顺序不能反：
 
-1. **把镜像导进 NAS** —— NAS 上的 Docker 只能拉公开镜像，我们的镜像是私有的，所以用文件导入。
-2. **建一个 Docker 项目** —— 粘贴一段 compose，把容器跑起来。
-3. **把域名接过来** —— 你 CF 里那条 `workbench.lbuding.com` 现在指向老服务器（101.200.131.44），要改成走隧道。
+1. **拉镜像** —— 代码已经由 GitHub Actions 打成 arm64 镜像，存在公开的 GHCR 里，NAS 直接拉就行。
+2. **建一个 Docker 项目** —— 粘贴一段 compose，把 `workbench` 和 `watchtower` 两个容器跑起来。
+3. **把域名接过来** —— 让 `workbench.lbuding.com` 经由 Cloudflare 隧道打到 NAS 的 3100 端口。
 
-镜像已经构建好并打包在本地：
+跑起来之后，**以后每次更新都不需要你动手**：
 
 ```
-~/Downloads/workbench-nas-classic.tar      （223MB，给 GUI 导入用）
-~/Downloads/workbench-nas-classic.tar.gz   （74MB，上传慢就用这个）
+本地改代码 → pnpm push → GitHub Actions 构建镜像（约 4 分钟）
+           → watchtower 每 5 分钟查一次 → 自动拉新镜像、重建容器
+           → 你刷新网页就是最新版
 ```
 
-> 之前那份 `workbench-arm64-image.tar` 导不进去，是因为它是 OCI/containerd 布局（`blobs/sha256/…`），UGOS 的导入器只认 `docker save` 产出的老格式（一堆 `<层ID>/layer.tar` + `manifest.json` + `repositories`）。现在这两份已经是老格式，直接导入就行。
+数据全程在你的 NAS 上（`/volume1/docker/workbench/data`），不经过 GitHub。
 
 镜像信息（已核实）：`architecture: arm64`、`os: linux`、`Entrypoint: /sbin/tini -- /usr/local/bin/docker-entrypoint.sh`、`Cmd: node server.js`、`User: root`（入口脚本会自己降权到 uid 1001）、`ExposedPorts: 3100/tcp`、`VOLUME /data`。
 
 ---
 
-## 二、导入镜像（约 3~5 分钟，取决于你的上行带宽）
+## 二、拉镜像（不用再导入 tar 了）
 
-1. 绿联云客户端 → 桌面打开 **Docker** 应用
-2. 左侧 **镜像** → 上方 **本地镜像** → 右侧 **添加 / 导入**
-3. 选择 `workbench-nas-classic.tar` 上传
+仓库和 GHCR 包现在都是 **public**，NAS 可以直接从网上拉，不用再传 223MB 的 tar。
 
-上传完等它解包，列表里会出现一个 **`workbench:latest`**，大小约 250MB（压缩包 223MB，解压后是这么多，正常）。
+已验证：匿名取 token → 拉 manifest → **200**，12 个 layer 都在。
 
-> 传大文件慢的话，用 `.tar.gz` 那份（74MB），UGOS 的导入器两种都吃。
-> 如果客户端里根本找不到「导入」按钮，就去 **镜像仓库列表 → 新建加速器** 先配个源，再回来找；实在没有，看文末「备选方案」。
+**如果你已经导入过 `workbench:latest`**：可以跳过这步，直接看第三节（把 compose 换成新版本就行，旧镜像留着当兜底）。
+
+**如果是全新部署**：
+
+1. 绿联云客户端 → 桌面打开 **Docker**
+2. 左侧 **镜像** → **本地镜像** → 右上角 **添加**（有的版本叫「拉取」）
+3. 镜像地址填：
+
+```
+ghcr.io/lengbuding1991/personal-workbench:latest
+```
+
+4. 等它拉完（约 250MB），列表里出现 `personal-workbench` 即可。
+
+> UGOS 的「镜像仓库 → 搜索」功能是坏的（官方已知问题），**别在搜索框里找**，直接用「添加 / 拉取」填完整地址。
 
 ---
 
@@ -48,9 +60,11 @@
 ```yaml
 services:
   workbench:
-    image: workbench:latest
+    image: ghcr.io/lengbuding1991/personal-workbench:latest
     container_name: workbench
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - "3100:3100"
     volumes:
@@ -72,11 +86,32 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  watchtower:
+    image: ghcr.io/containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TZ: Asia/Shanghai
+      WATCHTOWER_POLL_INTERVAL: "300"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_TIMEOUT: "120s"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 ```
 
-4. 点 **部署**（或「应用」），等容器变 running。
+4. 点 **部署**（或「应用」），等两个容器都变 running。
 
-### 这段配置里两个容易踩的点
+> **老用户迁移**：如果你现在的 compose 里写的是 `image: workbench:latest`（本地导入的那个），把它改成上面 `ghcr.io/...` 那行，再在最底下补 `watchtower` 那段，重新部署一次。数据在 `./data` 里，不受影响。
+
+### 这段配置里三个容易踩的点
 
 **`/volume1/docker/workbench/data`** —— 这是存你所有数据的目录（数据库 + 每日备份）。
 - UGOS Pro 的存储池一般挂成 `/volume1`；如果你有多个存储池、或者这个路径建不了，改成你实际有的，比如 `/volume2/docker/workbench/data`。
@@ -85,6 +120,8 @@ services:
 
 **`WB_SECURE_COOKIE: "0"`** —— 别改成 1。
 程序会自己看 `X-Forwarded-Proto` 决定要不要给 cookie 加 Secure：走 CF 隧道时是 https，它会自动加；你在家里用 `http://NAS的IP:3100` 时是 http，它不加。**强行写 1 的话，http 下浏览器会直接丢掉 cookie，登录看似成功却一直跳回登录页**（这个坑在阿里云那台已经踩过一次）。
+
+**`/var/run/docker.sock`** —— watchtower 靠它操作容器。这是它唯一的能力，也是它唯一的风险点：挂了 socket 等于把 NAS 的 Docker 控制权交给这个容器。watchtower 是成熟的官方级项目（containrrr），镜像来自 GHCR，但你要是介意，把 `watchtower` 那段删掉，改成手动更新（见第七节末尾）。
 
 ---
 
@@ -109,39 +146,45 @@ http://NAS的IP:3100
 
 ---
 
-## 五、接域名（这是你现在最卡的一步）
+## 五、接域名（已经配好了，这里是核对清单）
 
-先看清楚现状（我刚查的）：
+线上现状（已生效）：
 
 ```
-workbench.lbuding.com  →  101.200.131.44     ← 还是老阿里云那台
-nas.lbuding.com        →  104.21.34.41 / 172.67.196.249   ← 已经走 CF 隧道了
+workbench.lbuding.com  →  CNAME 69f29f36-6caa-4b3b-a84c-1daf4e997d6b.cfargotunnel.com  🟠 已代理
+nas.lbuding.com        →  隧道 nas（NAS 管理界面，别动）
 ```
 
-所以你 CF 后台的隧道 `nas` 里虽然有 `workbench.lbuding.com` 这条**路由**，但**DNS 记录还指着老服务器**，请求根本没进隧道。这就是为什么 `https://workbench.lbuding.com` 打不开（那台机器上的服务已经被我们清掉了）。
+三条链路缺一不可，出问题就按这个表查：
 
-### 要做两步
+| 环节 | 在哪配 | 配好长什么样 |
+|---|---|---|
+| 1. 隧道 Public Hostname | Zero Trust → Tunnels → `nas` → 路由 | `workbench.lbuding.com` → `HTTP` → `localhost:3100`（或 `192.168.1.197:3100`） |
+| 2. DNS 记录 | 域名 `lbuding.com` → DNS → 记录 | 类型 `CNAME`，名称 `workbench`，目标 `…cfargotunnel.com`，**橙云** |
+| 3. 容器监听 | compose | `ports: "3100:3100"`，容器内 `HOSTNAME=0.0.0.0` |
 
-**第一步：改隧道的服务地址**
+### 为什么会各自出错
 
-Cloudflare → Zero Trust → Networks → Tunnels → 点 `nas` → **路由** → 找到 `workbench.lbuding.com` → 编辑：
+**只有隧道没有 DNS** → 浏览器 `ERR_CONNECTION_CLOSED` 或 `NXDOMAIN`。隧道里那条只是「如果这个域名的流量进来，转给谁」，管不了域名怎么解析。
 
-- **服务类型**：`HTTP`
-- **URL**：`localhost:3100`
+**只有 DNS 没有隧道** → CF 报 `502 Bad Gateway`（连得到 CF，但回不了源站）。
 
-（`nas.lbuding.com` 那条别动，它是 NAS 自己的管理界面。）
+**两个都有但服务地址写错** → `502`。cloudflared 和容器在同一台 NAS 上，`http://localhost:3100` 一定通；写 `192.168.1.197:3100` 在 bridge 网络下也可能通，但 localhost 更保险。
 
-**第二步：改 DNS 记录**
+### 怎么快速自查
 
-Cloudflare → 你的域名 `lbuding.com` → DNS → 找到 `workbench` 那条 A 记录：
+```bash
+# 1. DNS 有没有走 CF（应该返回 104.21.x.x 或 172.67.x.x，不是 101.200.131.44）
+dig +short workbench.lbuding.com
 
-- **删掉** `A → 101.200.131.44`
-- **新建**：类型 `CNAME`，名称 `workbench`，目标 `69f29f36-6caa-4b3b-a84c-1daf4e997d6b.cfargotunnel.com`，代理状态**橙色云（已代理）**
+# 2. CF 权威服务器怎么说（NXDOMAIN = 记录不存在）
+dig workbench.lbuding.com A @aron.ns.cloudflare.com | grep status
 
-> 隧道 ID 我从你截图里读的：`69f29f36-6caa-4b3b-a84c-1daf4e997d6b`。如果对不上，在 Tunnel 详情页右上角能直接复制。
-> 有些版本的 CF 在「路由」那边加完会**自动帮你建好** CNAME，那样第二步就不用做了，刷新 DNS 页面看到橙云 CNAME 就对了。
+# 3. 应用本身活着没
+curl -s https://workbench.lbuding.com/api/health
+```
 
-改完等 1~2 分钟，访问 `https://workbench.lbuding.com`，应该直接落到设密码页。
+第 3 条返回 `{"ok":true,"sha":"…"}` 就说明整条链路通了。
 
 ---
 
@@ -159,32 +202,81 @@ Cloudflare → 你的域名 `lbuding.com` → DNS → 找到 `workbench` 那条 
 
 ---
 
-## 七、以后怎么更新
+## 七、以后怎么更新（全自动，你不用管）
 
-改完代码 → 本机 `pnpm push` → GitHub Actions 自动构建新镜像（约 4 分钟，比第一次快，有缓存）→ 你在 NAS 上：
+改完代码，本地两条命令：
 
-1. Docker → 项目 → `workbench` → **停止**
-2. 镜像 → 本地镜像 → 删掉旧的 `workbench:latest`
-3. 用新的 tar 重新导入（我会把新包发给你）
-4. 项目 → **启动**
+```bash
+git add -A && git commit -m "改了啥" && pnpm push
+```
 
-数据在 `/volume1/docker/workbench/data`，删镜像、重建容器都不会碰它。
+然后就没了。接下来全自动：
 
-> 想彻底不折腾：把 GitHub 仓库改成 public，GHCR 包也就能设 public，NAS 直接 `docker pull ghcr.io/lengbuding1991/personal-workbench:latest`，连导入都省了。代价是源码公开（`.gitignore` 已经把 `data/`、`screens/` 排除了，不会泄露数据）。要不要这么干你说一声。
+```
+pnpm push
+   ↓ 约 10 秒，GitHub 收到提交
+GitHub Actions 构建 arm64 镜像
+   ↓ 约 4 分钟（有缓存时 2 分钟）
+新镜像推到 ghcr.io/…:latest
+   ↓ watchtower 每 5 分钟 poll 一次
+发现 digest 变了 → docker pull → 重建 workbench 容器
+   ↓ 约 30 秒
+刷新网页就是最新版
+```
+
+从 `push` 到线上生效，**最慢约 10 分钟**（取决于 Actions 排队和 watchtower 的下次轮询）。想快一点，把 compose 里 `WATCHTOWER_POLL_INTERVAL` 从 `300` 改成 `60`。
+
+### watchtower 只动你的工作台
+
+compose 里的 `WATCHTOWER_LABEL_ENABLE: "true"` + workbench 容器的 `com.centurylinklabs.watchtower.enable=true` 标签，意思是：**只更新带这个标签的容器**。NAS 上其它容器（发货库存、下载器、相册之类）它一概不碰。
+
+### 数据不会丢
+
+数据库在 `/volume1/docker/workbench/data`，是宿主机目录挂进容器的。watchtower 重建容器时挂载点不变，`workbench.db` 一直在。每日备份 `./data/backups/workbench-YYYY-MM-DD.db` 也在那里。
+
+### 怎么确认更新成功了
+
+```bash
+# 在绿联的「容器 → workbench → 终端」里跑
+curl -s localhost:3100/api/health
+```
+
+返回的 `sha` 就是当前跑的是哪个提交。和 GitHub 上 `main` 的最新 sha 一比就知道有没有更新到。
+
+或者直接看 watchtower 的日志：Docker → 容器 → `watchtower` → 日志，会打印 `Found new image` / `Stopping /workbench` / `Creating /workbench`。
+
+### 想临时关掉自动更新
+
+Docker → 项目 → `workbench` → 把 `watchtower` 那个服务停掉就行（或把 `WATCHTOWER_POLL_INTERVAL` 设成 `0`，watchtower 就跑一次就退出）。
 
 ---
 
-## 备选方案：客户端里没有「导入镜像」
+## 备选方案：不想让 watchtower 碰 Docker
 
-如果 UGOS 的 Docker 界面里找不到导入入口，两条路：
+如果你不想把 `/var/run/docker.sock` 交给容器，两条退路：
 
-**A. 用 CF 隧道暴露一个临时端口**（不改 DNS，只在本机测）
-不必，跳过。
+**A. 手动更新（保留自动构建，手动拉取）**
 
-**B. 让我在 GitHub Actions 里顺手产出一个「公开可拉」的镜像**
-你把仓库设为 public（或授权我用另一个公开仓库），我改成推到 Docker Hub 或公开 GHCR，NAS 里填镜像名直接拉。
+compose 里只留 `workbench` 那段，删掉 `watchtower`。以后每次更新：
 
-告诉我卡在哪一步，我按你的实际情况调。
+```bash
+# 本地
+git add -A && git commit -m "改了啥" && pnpm push
+```
+
+等 4 分钟，然后在客户端：Docker → 项目 → `workbench` → **更新**（它会 `docker pull` 新镜像并重建）。
+
+数据在 `./data`，重建容器不影响。
+
+**B. 用镜像 digest 锁版本**
+
+把 `image:` 写成带完整 sha 的形式（每次构建都会打 `:${{ github.sha }}` 标签）：
+
+```yaml
+image: ghcr.io/lengbuding1991/personal-workbench:af891e2b1c3d4e5f...
+```
+
+只有你改了这行才会更新，最可控，但每次都要手改。
 
 ---
 

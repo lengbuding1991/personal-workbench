@@ -34,19 +34,20 @@
   },
   "qa": {
     "status": "verified",
-    "round": "第十一轮：迁移到绿联 NAS（Docker + watchtower 全自动更新）",
+    "round": "第十二轮：切页卡顿治理（骨架屏 + 进度线 + 路由缓存）",
     "verified": [
       "pnpm typecheck 通过",
       "pnpm build 通过",
       "GitHub Actions arm64 原生 runner 构建成功（ubuntu-24.04-arm）",
       "GHCR 匿名拉取 200",
       "compose 语法与两个 service 配置已核对",
-      "docker-compose.nas.yml 已改成 ghcr 拉取 + watchtower 自动更新"
+      "docker-compose.nas.yml 已改成 ghcr 拉取 + watchtower 自动更新",
+      "2026-11-04 第十二轮：loading.tsx 骨架屏、NavProgress 顶部进度线、staleTimes 30s 路由缓存、去除侧栏/login-card 的 backdrop-filter、blobs blur 100→72px；typecheck + build 通过；CDP 模拟 900ms 延迟截图确认骨架屏与替换过程"
     ],
     "unverified": [
-      "watchtower 在 NAS 上实际拉取重建的完整流程（等用户更新 compose 后观察）",
-      "pnpm push 之后从提交到线上生效的实际耗时",
-      "CF 隧道 Source 用 localhost:3100 与 192.168.1.197:3100 的差异"
+      "CF 边缘落点在美国（SJC/LAX/BOS）导致的基础延迟，客户端无法干预",
+      "watchtower 精简配置后是否还重启（需用户在绿联看容器状态）",
+      "真机 390px 与 iOS Safari 上的实际手感"
     ],
     "note": "自动化测试必须在 WORKBENCH_DATA_DIR 临时目录下进行"
   },

@@ -183,3 +183,21 @@ http 下直接丢掉 cookie，登录看似成功却一直跳回登录页（本�
 2. 转成 `docker save` 老布局仍然失败 —— 真因是 macOS 的 `bsdtar` 因为文件带扩展属性，给每个成员加了 **PaxHeader** 扩展头，严格的 ustar 解析器直接判为未知格式。最后用纯 Node 手写严格 ustar（512 字节块、八进制字段、`ustar\0`+`00`、结尾两个全零块）才通过。
 
 **线上跳转 localhost 的坑**：`middleware.ts` 原本用 `req.nextUrl.clone()` 拼 `/login`，Next 在 `next start -H 127.0.0.1 -p 3200` 下把自己 origin 认成 `http://localhost:3200`，于是 307 到用户自己电脑的 3200。改用 `X-Forwarded-Host` / `Host` 也不行（Next 会改写 Host）。**最终方案：middleware 不发任何 redirect**，只把原路径写进 `x-wb-next` 请求头放行，由 `app/(app)/layout.tsx` 的服务端 `redirect("/login")` 发相对 307，浏览器按当前域名补全。
+
+## 2026-11-04 — 第十二轮：切页卡顿治理（骨架屏 + 进度线 + 路由缓存）
+
+**现象**：用户说在 `https://workbench.lbuding.com` 点侧栏「感觉很卡」。
+
+**实测拆因**：本机直连 `/` ttfb 0.0087s，经 CF 后 0.84–1.11s；`cf-ray` 落在 `SJC`/`LAX`/`BOS`（美国），对手机在上海；HTML 是 `no-store` + `DYNAMIC`，每次切页都回源到老家 NAS；静态 chunk 是 `HIT` + `immutable`，没问题。
+
+**结论**：慢在链路（改不了），但界面在那 1 秒里完全不动（能改）。
+
+**改动**：
+1. `app/(app)/loading.tsx` 骨架屏 —— 仓库此前 `loading.tsx` 数量为 0。
+2. `components/NavProgress.tsx` + `.nav-progress` 顶部 2px 进度线；`Sidebar` 的 `<Link>` 加 `onClick={ping}` 派发 `wb:nav-start`。
+3. `next.config.ts` 的 `experimental.staleTimes: { dynamic: 30, static: 180 }` —— 默认 dynamic 缓存 0 秒，来回切页每次回源。
+4. 去掉 `.side` 与 `.login-card` 的 `backdrop-filter: blur(20px)`，`.blobs i` 的 `blur(100px)` 降到 `72px`。
+
+**为什么用「自定义事件 + pathname 变化」判断导航进度**：Next 15 App Router 没有暴露 route-change 事件，`useRouter` 也没有 `events`。用 `pathname` 变化做结束信号 + 4 秒兜底，是客户端能拿到的最可靠信号。
+
+**为什么不把页面改成 ISR 或静态**：全部页面服务端直读 SQLite 且要登录态，静态化会把「别人能不能看」变成构建期决定，安全性下降；`force-dynamic` 必须留。

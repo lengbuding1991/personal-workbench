@@ -61,29 +61,36 @@ services:
         max-file: "3"
 
   # 自动更新：盯着上面的 latest 镜像，digest 一变就拉新的并重建 workbench 容器。
+  # 自动更新：盯着 workbench 的 latest 镜像，digest 一变就拉新的并重建容器。
+  #
+  # 环境变量刻意只留最少的几个 —— 这是绿联官方知识库
+  # 《在绿联NAS上搭建Watchtower，自动更新容器》里的写法（support.ugnas.com/detail/article/zh-CN/549）。
+  # 之前配了 WATCHTOWER_LOG_FORMAT / WATCHTOWER_TIMEOUT / WATCHTOWER_INCLUDE_RESTARTING
+  # 这些自定义项，容器一直「重启中」，精简回官方那套最稳。
   watchtower:
     image: ghcr.io/containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
 
     volumes:
-      # 挂 docker.sock 它才能操作容器（这是 watchtower 唯一的权限，也是它唯一的风险点）
+      # 挂 docker.sock 它才能操作容器。这是它唯一的权限来源，也是唯一的风险点。
       - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
 
     environment:
       TZ: Asia/Shanghai
-      # 每 5 分钟检查一次（300 秒）。想更快改成 120，想更省电改成 900。
-      WATCHTOWER_POLL_INTERVAL: "300"
-      # 只更新带 enable=true 标签的容器，不碰 NAS 上其它服务
-      WATCHTOWER_LABEL_ENABLE: "true"
       # 更新后删掉旧镜像，否则 76MB × N 很快把系统盘吃满
       WATCHTOWER_CLEANUP: "true"
-      # 重建容器时保留旧容器的重启策略等设置
-      WATCHTOWER_INCLUDE_RESTARTING: "true"
-      # 拉取超时（秒），NAS 走 CF 出的网，慢的时候别太急
-      WATCHTOWER_TIMEOUT: "120s"
-      # 容器日志带时间戳，排错时能对上是哪次更新
-      WATCHTOWER_LOG_FORMAT: "json"
+      # 容器一个个重启，不要同时停
+      WATCHTOWER_ROLLING_RESTART: "true"
+      # 只更新带 com.centurylinklabs.watchtower.enable=true 标签的容器。
+      # 上面 workbench 已经打了这个标签；NAS 上别的容器（相册、下载器之类）
+      # 不会被它碰，避免哪天自动升级把别的服务搞挂。
+      WATCHTOWER_LABEL_ENABLE: "true"
+      # 每 5 分钟查一次（300 秒）。想更快改 120，想省电改 900。
+      WATCHTOWER_POLL_INTERVAL: "300"
+      # 启动时不要打那条横幅，日志干净点
+      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
 
     logging:
       driver: json-file

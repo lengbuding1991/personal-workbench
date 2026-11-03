@@ -103,8 +103,8 @@ rollback() {
         --exclude='*/.next' --exclude='*/node_modules' >>"$LOG" 2>&1
       rm -f "$RB"
       chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
-      sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false" >>"$LOG" 2>&1
-      sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
+      sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile" >>"$LOG" 2>&1
+      sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
       printf '%s' "$OLD" > "$APP_DIR/.deployed-sha"
       systemctl restart "$SERVICE"
       log "已回滚，服务恢复到 ${OLD:0:7}"
@@ -129,10 +129,10 @@ rm -f "$TARBALL"
 printf '%s' "$NEW" > "$APP_DIR/.deployed-sha"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
 
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false" >>"$LOG" 2>&1 \
+sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile" >>"$LOG" 2>&1 \
   || rollback "装依赖失败"
 
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
+sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
   || rollback "构建失败"
 
 # 保证数据目录还在（首次部署时由 setup.sh 建好）

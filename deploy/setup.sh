@@ -122,6 +122,8 @@ fi
 
 mkdir -p "$APP_DIR/data/backups"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+# pnpm 的全局 store 要写在用户家目录里，HOME 不对会报 EACCES
+chmod 755 "$APP_DIR"
 
 echo "  装依赖（首次要一两分钟）"
 su - "$APP_USER" -c "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false --registry=https://registry.npmmirror.com"
@@ -205,7 +207,17 @@ fi
 # ---------- 7. HTTPS ----------
 say "7/7 HTTPS"
 SERVER_IP="$(curl -fsS --max-time 8 https://api.ipify.org 2>/dev/null || echo '')"
-RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
+# 有的精简镜像没有 getent，退回 python / dig
+resolve_domain() {
+  if command -v getent >/dev/null 2>&1; then
+    getent hosts "$1" | awk '{print $1}' | head -1
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "import socket,sys;print(socket.gethostbyname(sys.argv[1]))" "$1" 2>/dev/null || true
+  elif command -v dig >/dev/null 2>&1; then
+    dig +short "$1" | head -1
+  fi
+}
+RESOLVED="$(resolve_domain "$DOMAIN" || true)"
 if [ -z "$RESOLVED" ]; then
   warn "域名 ${DOMAIN} 还没有解析记录，跳过 HTTPS"
   warn "去域名控制台加一条 A 记录指向 ${SERVER_IP:-这台机器的公网 IP}，然后重跑："

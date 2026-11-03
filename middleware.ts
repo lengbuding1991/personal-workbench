@@ -48,11 +48,24 @@ export function middleware(req: NextRequest) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const url = req.nextUrl.clone();
-  url.pathname = "/login";
-  url.search = "";
-  if (pathname !== "/") url.searchParams.set("next", `${pathname}${search}`);
-  return NextResponse.redirect(url);
+  // 注意：不能用 req.nextUrl.clone()。`next start -H 127.0.0.1 -p 3200` 时它把
+  // origin 当成 http://localhost:3200，于是站在 nginx 后面的用户会被 307 到
+  // 「http://localhost:3200/login」——那是他自己电脑上的 3200 端口，直接连接被拒。
+  // 所以用 nginx 传来的 X-Forwarded-* 头拼绝对地址，拿不到就退化成相对跳转。
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+  const forwardedHost =
+    req.headers.get("x-forwarded-host")?.split(",")[0].trim() ||
+    req.headers.get("host")?.trim();
+
+  const target = new URLSearchParams();
+  if (pathname !== "/") target.set("next", `${pathname}${search}`);
+  const qs = target.toString();
+
+  if (forwardedHost) {
+    const proto = forwardedProto || "http";
+    return NextResponse.redirect(`${proto}://${forwardedHost}/login${qs ? `?${qs}` : ""}`);
+  }
+  return NextResponse.redirect(new URL(`/login${qs ? `?${qs}` : ""}`, req.url), 307);
 }
 
 export const config = {

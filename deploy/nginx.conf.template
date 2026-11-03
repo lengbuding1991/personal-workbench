@@ -11,8 +11,11 @@ server {
     # 上传导入包时别被 1M 的默认值挡住
     client_max_body_size 32m;
 
-    # 让应用知道「外面来的是 https」，登录 cookie 才会带 Secure
+    # 让应用知道「外面来的是 https」和「外面访问的是哪个域名」。
+    # X-Forwarded-Host 是给 middleware 拼登录跳转地址用的：应用只监听 127.0.0.1，
+    # 靠自己永远猜不到真实域名，漏了这个头用户会被跳到 http://localhost:3200/login。
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header Host $host;

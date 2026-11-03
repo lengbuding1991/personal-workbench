@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "project_name": "个人工作台",
-  "phase": "qa",
+  "phase": "deploy",
   "created_at": "2026-11-02T12:49:51Z",
   "updated_at": "2026-11-03T14:10:00Z",
   "primary_scenario": "个人人生工作台：待办→完成复盘、记录+查找、日程+提醒（通用底座，模块后加）",
@@ -64,5 +64,23 @@
       "登录在部署到 https 后的 secure cookie 行为（需 WB_SECURE_COOKIE=1）"
     ],
     "note": "自动化测试必须在 WORKBENCH_DATA_DIR 临时目录下进行"
+  },
+  "deploy": {
+    "target": "阿里云 101.200.131.44",
+    "domain": "workbench.lbuding.com",
+    "port": 3200,
+    "app_dir": "/opt/workbench",
+    "service": "workbench",
+    "timer": "workbench-update.timer",
+    "status": "ready-for-bootstrap",
+    "verified": [
+      "从 GitHub 快照 clone 后 pnpm install + build 通过",
+      "空库首启（WORKBENCH_SEED=0）无示例数据",
+      "/api/health 200、未登录 307/401、设密后登录 200"
+    ],
+    "unverified": [
+      "真实服务器上的 nginx/certbot 流程",
+      "systemd 定时器实际触发一次自动更新"
+    ]
   }
 }

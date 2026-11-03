@@ -130,3 +130,28 @@ Append dated, confirmed decisions below. Do not rewrite earlier entries silently
 - 顺带修 bug：清空数据后首页 `TypeError: Cannot read properties of undefined (reading 'pct')`，`components/Dashboard.tsx` 的 `invest[0].pct` 改 `invest[0]?.pct`。
 - 坑：`Set-Cookie` 带 `secure` 时本机 http 会被浏览器丢弃，登录「成功」却跳回登录页；改为 `WB_SECURE_COOKIE=1` 才开启。
 - 节流：同 IP 10 分钟错 6 次锁 10 分钟；密码错误文案逐次递减。
+
+## 2026-11-03 — 第九轮：部署到阿里云 + 自动更新
+
+**为什么不用 GitHub Actions / Webhook**：仓库得能让阿里云那台机器主动拉，而这台机器
+到 `github.com:443` 的 TLS 会被掐断（`GnuTLS recv error -110`），只有 `api.github.com`
+和 `codeload.github.com` 通。所以走「服务器上 systemd timer 每 5 分钟问 API 要 main 的 sha
+→ 不一样就从 codeload 下 tar.gz → 解压覆盖 → 构建 → 重启」。
+
+**为什么不用 `git pull`**：同上，`github.com` 不通。副作用是删掉的文件不会跟着消失，
+所以推送脚本和部署脚本两侧都补了「显式删除」：远端 tree 用 `sha:null` 删条目，
+服务器解压时用 `--exclude='*/data'` 保住数据。
+
+**端口 3200 而不是 3000**：同一台机器上发货库存占了 3000。应用只监听 `127.0.0.1`，
+nginx 反代。
+
+**定时器叫 `workbench-update.timer` 而不是 `update-check.timer`**：发货库存已经有
+一个 `update-check.timer`，同名会被覆盖，导致它的自动更新静默失效。`OnBootSec=4min`
+错峰，避免和它在同一秒抢带宽。
+
+**Secure cookie 跟着 HTTPS 结果走**：`workbench.service` 默认 `WB_SECURE_COOKIE=0`，
+`sеtup.sh` 在证书申请成功后改成 1。否则「证书没申请下来 + 强制 Secure」会让浏览器在
+http 下直接丢掉 cookie，登录看似成功却一直跳回登录页（本地开发已经踩过一次）。
+
+**上线不灌示例数据**：`workbench.service` 里 `WORKBENCH_SEED=0`，`lib/db.ts` 的 seed
+条件加了 `&& process.env.WORKBENCH_SEED !== "0"`。线上首启是空库。

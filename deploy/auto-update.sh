@@ -104,7 +104,7 @@ rollback() {
       rm -f "$RB"
       chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
       sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile" >>"$LOG" 2>&1
-      sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
+      sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' WORKBENCH_SHA='$OLD' pnpm build" >>"$LOG" 2>&1
       printf '%s' "$OLD" > "$APP_DIR/.deployed-sha"
       systemctl restart "$SERVICE"
       log "已回滚，服务恢复到 ${OLD:0:7}"
@@ -132,7 +132,12 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR" 2>/dev/null
 sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile" >>"$LOG" 2>&1 \
   || rollback "装依赖失败"
 
-sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
+# 类型检查与构建分开跑：合在一起时 tsc 会和 webpack 抢内存，2G 机器上必被 OOM 杀
+# （exit 137 / Killed）。原因与取舍见 next.config.ts 的注释。
+sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' pnpm typecheck" >>"$LOG" 2>&1 \
+  || rollback "类型检查失败"
+
+sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' WORKBENCH_SHA='$NEW' pnpm build" >>"$LOG" 2>&1 \
   || rollback "构建失败"
 
 # 保证数据目录还在（首次部署时由 setup.sh 建好）

@@ -126,11 +126,25 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 755 "$APP_DIR"
 
 echo "  装依赖（首次要一两分钟）"
-su - "$APP_USER" -c "cd '$APP_DIR' && pnpm install --frozen-lockfile --prod=false --registry=https://registry.npmmirror.com"
+su - "$APP_USER" -c "cd '$APP_DIR' && pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com"
+
+# 小内存机器（1~2G）没 swap 时，next build 很容易被 OOM killer 杀掉（exit 137）。
+# 先补一块 swap，成本几乎为零，但能救回这类失败。
+if [ -z "$(swapon --show 2>/dev/null)" ] && [ "$(free -m 2>/dev/null | awk '/Mem:/{print $2}')" -lt 2500 ] 2>/dev/null; then
+  echo "  内存偏小且没有 swap，先补 1G swap"
+  (fallocate -l 1G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none) &&
+  chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile >/dev/null &&
+  grep -q '^/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 
 echo "  构建（第一次大概 30~60 秒）"
 # 记准这次部署的是哪个提交，自动更新靠它判断要不要动
-SHA_NOW="$(tr -d '\r\n' < "$APP_DIR/.deployed-sha" 2>/dev/null || true)"
+# 注意：文件不存在时不能直接 `< 文件`，重定向由 shell 处理，2>/dev/null 拦不住，
+# 会打印一行 "No such file or directory" 让人以为出错了。所以先判断存在。
+SHA_NOW=""
+if [ -f "$APP_DIR/.deployed-sha" ]; then
+  SHA_NOW="$(tr -d '\r\n' < "$APP_DIR/.deployed-sha" 2>/dev/null || true)"
+fi
 if [ -z "$SHA_NOW" ] && [ -f "$TOKEN_FILE" ]; then
   SHA_NOW="$(curl -fsS --max-time 20 -H "Authorization: token $(tr -d '\r\n' < "$TOKEN_FILE")" \
     "https://api.github.com/repos/lengbuding1991/personal-workbench/commits/main" 2>/dev/null \
@@ -139,8 +153,20 @@ fi
 SHA_NOW="${SHA_NOW:-setup}"
 printf '%s' "$SHA_NOW" > "$APP_DIR/.deployed-sha"
 chown "$APP_USER:$APP_USER" "$APP_DIR/.deployed-sha"
-# 小内存机器（1~2G）构建容易 OOM，给个上限兜住
-su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1536' WORKBENCH_SHA='$SHA_NOW' pnpm build"
+# 类型检查单独跑：next.config.ts 里已经把 build 期间的类型检查关掉，
+# 因为那一步会在 webpack 还在占内存时再拉一个 tsc，2G 机器上必被 OOM 杀。
+# 拆开跑峰值内存只取较大者，而校验强度没变 —— 这里失败就不往下走。
+echo "  类型检查"
+if su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' pnpm typecheck"; then
+  ok "类型检查通过"
+else
+  warn "类型检查没通过，先不构建。修完再跑 sudo bash ${APP_DIR}/deploy/setup.sh ${DOMAIN}"
+  exit 1
+fi
+
+echo "  构建（第一次大概 30~60 秒）"
+# 构建阶段已经没有 tsc 并行，堆上限给 1024 就够，再多反而更容易触发 OOM
+su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' WORKBENCH_SHA='$SHA_NOW' pnpm build"
 ok "构建完成"
 
 # ---------- 5. 数据目录 ----------

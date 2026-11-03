@@ -155,3 +155,13 @@ http 下直接丢掉 cookie，登录看似成功却一直跳回登录页（本�
 
 **上线不灌示例数据**：`workbench.service` 里 `WORKBENCH_SEED=0`，`lib/db.ts` 的 seed
 条件加了 `&& process.env.WORKBENCH_SEED !== "0"`。线上首启是空库。
+
+## 2026-11-03 — 第十轮：线上部署排错
+
+- **构建 OOM（exit 137）**：next build 里 tsc 与 webpack 抢内存，2G 机器必死。决定关掉构建期类型检查，
+  改由 `pnpm typecheck` 前置独立跑；构建堆上限 1024；小内存机自动补 1G swap。
+- **登录跳转不能用 middleware 发绝对地址**：`next start -H 127.0.0.1` 下 Next 的 self origin 是
+  `http://localhost:3200`，用户会被送去自己电脑的 3200 端口。试过 X-Forwarded-Host 与相对 Location
+  两条路都失败（后者 500 `TypeError: Invalid URL`）。最终把页面跳转挪到 `app/(app)/layout.tsx`，
+  用 `redirect('/login')` 发相对 307；middleware 只保留 API 401 与 `x-wb-next` 透传。
+- **Cloudflare 保持灰云**：解析直连服务器，证书由本机 certbot 签。开橙云需先设 Full (strict)。

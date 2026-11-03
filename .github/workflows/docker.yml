@@ -5,9 +5,11 @@
 #   没有 `docker compose build`。所以在 GitHub 上把镜像预先构建好，
 #   让 NAS 那边只要「拉一个现成的镜像」就能跑。
 #
-# 为什么只构建 arm64：
-#   DH4300 Plus 是 RK3588（aarch64）。构建走 QEMU 模拟，
-#   一次的耗时大约 15~25 分钟，只在 main 有新提交时触发，不需要频繁跑。
+# 为什么用 ubuntu-24.04-arm 而不是 QEMU：
+#   第一版用 ubuntu-latest + QEMU 模拟 arm64，`next build` 跑到一半被
+#   `qemu: uncaught target signal 4 (Illegal instruction)` 干掉（SWC 的原生
+#   二进制在模拟器里跑不了）。换成 GitHub 原生的 arm64 runner 就没有这问题，
+#   而且快得多。私有仓库也给用（2 vCPU）。
 name: build-image
 
 on:
@@ -21,16 +23,12 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - uses: docker/setup-buildx-action@v3
 

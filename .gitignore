@@ -1,0 +1,12 @@
+node_modules
+.next
+data/*.db
+data/*.db-*
+.env*.local
+.DS_Store
+data/backups
+*.tsbuildinfo
+
+# screenshots & design snapshots (large binaries, not part of the app)
+screens/
+prototypes/screens/

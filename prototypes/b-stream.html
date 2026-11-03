@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方向 B · 一天流 | 个人工作台原型</title>
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --bg:#06080E; --panel:#0B0F17; --panel2:#0E131C; --line:#1B2230; --line2:#2A3446;
+    --text:#EEF2F9; --muted:#8493AA; --dim:#55637A;
+    --violet:#A78BFA; --violet2:#7C5CFA; --cyan:#22D3EE; --green:#34D399; --amber:#FBBF24; --red:#F87171;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;color:var(--text);background:var(--bg);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:24px 24px;
+    mask-image:linear-gradient(180deg,rgba(0,0,0,.5),transparent 70%);
+  }
+  button{font:inherit;color:inherit;cursor:pointer}
+  input,textarea{font:inherit;color:inherit}
+  ::selection{background:rgba(167,139,250,.3)}
+  [hidden]{display:none!important}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  .top{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;gap:16px;padding:0 22px;background:rgba(6,8,14,.82);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.05)}
+  .brand{font-family:var(--mono);font-size:12px;letter-spacing:.24em;font-weight:700;color:#EDE9FE;white-space:nowrap}
+  .brand i{color:var(--violet);font-style:normal}
+  .tabs{display:flex;gap:2px;margin:0 auto;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);padding:3px;border-radius:999px}
+  .tabs button{border:0;background:transparent;color:var(--dim);font-size:12px;padding:5px 13px;border-radius:999px;transition:.16s;white-space:nowrap}
+  .tabs button:hover{color:var(--muted)}
+  .tabs button.on{background:rgba(167,139,250,.13);color:#EDE9FE;box-shadow:inset 0 0 0 1px rgba(167,139,250,.22)}
+  .date-chip{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.1em;white-space:nowrap}
+
+  .wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:0 22px 150px}
+  .page{display:none}
+  .page.on{display:block;animation:up .32s ease both}
+  @keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* ---------- day head ---------- */
+  .day-head{padding:46px 0 24px}
+  .eyebrow{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;color:#C4B5FD;text-transform:uppercase}
+  .eyebrow::before{content:"";width:16px;height:1px;background:var(--violet);opacity:.6}
+  .day-head h1{margin:14px 0 12px;font-size:46px;line-height:1.12;letter-spacing:-.045em;font-weight:600}
+  .day-head h1 em{font-style:normal;color:var(--violet)}
+  .day-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
+  .ring{position:relative;width:46px;height:46px;flex:none}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .pct{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;color:#C4B5FD}
+
+  /* ---------- now ---------- */
+  .now-card{position:relative;display:flex;align-items:center;gap:20px;padding:18px 20px;border-radius:22px;overflow:hidden;
+    background:linear-gradient(115deg,rgba(167,139,250,.16),rgba(34,211,238,.05) 55%,rgba(255,255,255,.02));
+    border:1px solid rgba(167,139,250,.24);box-shadow:0 24px 70px rgba(0,0,0,.32)}
+  .now-card::after{content:"";position:absolute;right:-40px;top:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.22),transparent 65%);pointer-events:none}
+  .now-time{font-family:var(--mono);font-size:34px;letter-spacing:-.04em;color:#F3EFFF;line-height:1;flex:none}
+  .now-body{flex:1;min-width:0}
+  .now-k{font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:#C4B5FD;margin-bottom:3px}
+  .now-t{font-size:15px;font-weight:500}
+  .now-m{font-size:10.5px;color:var(--muted);margin-top:2px}
+  .start{flex:none;border:0;border-radius:12px;padding:10px 15px;background:#EDE9FE;color:#1B1233;font-weight:600;font-size:12px;box-shadow:0 8px 26px rgba(167,139,250,.25)}
+  .start:hover{background:#fff}
+
+  /* ---------- timeline ---------- */
+  .tl{position:relative;margin-top:36px}
+  .tl::before{content:"";position:absolute;left:62px;top:10px;bottom:10px;width:1px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.08) 6%,rgba(255,255,255,.08) 94%,transparent)}
+  .hour{display:grid;grid-template-columns:62px 1fr;gap:20px;min-height:48px;padding:5px 0}
+  .hour .h{position:relative;font-family:var(--mono);font-size:9.5px;color:#46536A;text-align:right;padding:10px 15px 0 0}
+  .hour .h::after{content:"";position:absolute;right:-3.5px;top:13px;width:6px;height:6px;border-radius:50%;background:#1A2230;border:1px solid #2A3446;transition:.2s}
+  .hour.has .h::after{background:var(--violet);border-color:#C4B5FD;box-shadow:0 0 0 4px rgba(167,139,250,.10)}
+  .slot{display:grid;gap:8px;align-content:start;min-width:0}
+
+  .ev{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:15px;background:linear-gradient(180deg,#0D121B,#0A0E16);border:1px solid #1D2533;transition:.18s;cursor:pointer}
+  .ev:hover{border-color:#334159;transform:translateX(2px)}
+  .ev .time{font-family:var(--mono);font-size:9.5px;color:#8E9BB2;padding-top:3px;min-width:36px;flex:none}
+  .ev .body{flex:1;min-width:0}
+  .ev .t{font-size:13.5px;line-height:1.45}
+  .ev .m{font-size:10px;color:var(--dim);margin-top:2px;display:flex;align-items:center;gap:6px}
+  .dot{width:5px;height:5px;border-radius:50%;display:inline-block;flex:none}
+  .dot.work{background:var(--cyan)} .dot.side{background:var(--violet)} .dot.study{background:var(--amber)}
+  .ev .ck{flex:none;width:17px;height:17px;margin-top:2px;border-radius:50%;border:1.5px solid #364255;display:grid;place-items:center;font-size:9px;color:transparent;transition:.15s}
+  .ev:hover .ck{border-color:var(--violet)}
+  .ev.done{opacity:.42}
+  .ev.done .t{text-decoration:line-through;text-decoration-color:#3B4759}
+  .ev.done .ck{border-color:var(--green);background:rgba(52,211,153,.12);color:var(--green)}
+  .now-line{display:flex;align-items:center;gap:10px;margin:2px 0 2px;color:#C4B5FD;font-family:var(--mono);font-size:9px;letter-spacing:.1em}
+  .now-line::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px rgba(167,139,250,.9);flex:none;margin-left:59px}
+  .now-line::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,rgba(167,139,250,.5),transparent)}
+
+  /* ---------- tray / prompt ---------- */
+  .tray{margin-top:30px;padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.018);border:1px dashed #232C3E}
+  .tray h3{margin:0 0 10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--dim);font-weight:500}
+  .tray .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;border:1px solid #28324A;background:#0B101A;color:#B9C4D6;font-size:11.5px;transition:.16s}
+  .chip:hover{border-color:var(--violet);color:#EDE9FE}
+  .chip .plus{color:var(--violet);font-size:12px}
+
+  .prompt{display:flex;align-items:center;gap:16px;margin-top:26px;padding:18px;border-radius:18px;background:linear-gradient(180deg,#0C111A,#090D14);border:1px solid #1D2533;flex-wrap:wrap}
+  .prompt .pt{font-family:var(--mono);font-size:20px;color:#C4B5FD;letter-spacing:-.02em;flex:none}
+  .prompt .pb{flex:1;min-width:180px}
+  .prompt .pb b{display:block;font-size:13.5px;font-weight:500}
+  .prompt .pb small{color:var(--dim);font-size:10.5px}
+  .btn-v{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);color:#EDE9FE;border-radius:10px;padding:8px 13px;font-size:11.5px}
+  .btn-v:hover{background:rgba(167,139,250,.2)}
+  .btn-g{background:transparent;border:1px solid #28324A;color:var(--muted);border-radius:10px;padding:8px 13px;font-size:11.5px}
+  .btn-g:hover{color:var(--text);border-color:#3A4660}
+
+  /* ---------- generic page bits ---------- */
+  .ph{padding:40px 0 22px}
+  .ph h1{margin:10px 0 6px;font-size:34px;letter-spacing:-.035em;font-weight:600}
+  .ph p{margin:0;color:var(--muted);font-size:12.5px}
+  .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0}
+  .s3{padding:14px 15px;border-radius:14px;background:#0B0F17;border:1px solid #1B2230}
+  .s3 .k{font-size:9.5px;color:var(--dim);letter-spacing:.08em}
+  .s3 strong{display:block;font-size:24px;font-weight:600;letter-spacing:-.03em;margin-top:2px}
+  .s3 strong span{font-size:10px;color:var(--dim);font-weight:400}
+  .week-list{display:grid;gap:7px}
+  .wrow{display:grid;grid-template-columns:58px 1fr 44px;gap:14px;align-items:center;padding:13px 15px;border-radius:14px;background:#0B0F17;border:1px solid #1B2230;cursor:pointer;transition:.15s}
+  .wrow:hover{border-color:#334159}
+  .wrow .d{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.08em}
+  .wrow .d b{display:block;color:#C9D3E3;font-size:14px;font-weight:500;margin-top:1px;letter-spacing:0}
+  .wrow .bar{height:4px;border-radius:99px;background:#161D29;overflow:hidden}
+  .wrow .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--violet2),var(--violet))}
+  .wrow .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-align:right}
+  .wrow.today{border-color:rgba(167,139,250,.35);background:linear-gradient(90deg,rgba(167,139,250,.08),#0B0F17)}
+  .wrow.today .d b{color:#EDE9FE}
+
+  .note{position:relative;padding:16px 18px;border-radius:16px;background:#0B0F17;border:1px solid #1B2230;margin-bottom:8px;cursor:pointer;transition:.15s}
+  .note:hover{border-color:#334159;transform:translateY(-1px)}
+  .note .nm{display:flex;align-items:center;gap:8px;font-size:9.5px;color:var(--dim);font-family:var(--mono);letter-spacing:.06em;margin-bottom:5px}
+  .note .nm .tg{color:#C4B5FD;border:1px solid rgba(167,139,250,.25);background:rgba(167,139,250,.07);border-radius:999px;padding:0 7px;font-family:inherit}
+  .note .nt{font-size:14px;line-height:1.5;color:#E3EAF5;margin-bottom:4px}
+  .note .nx{font-size:11.5px;color:var(--muted);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .q-search{width:100%;background:#0A0E16;border:1px solid #1B2230;border-radius:12px;padding:11px 13px;outline:none;font-size:12.5px;margin-bottom:14px}
+  .q-search:focus{border-color:rgba(167,139,250,.4)}
+  .empty{text-align:center;padding:44px 10px;color:var(--dim);font-size:12px}
+  .empty .g{font-size:26px;color:#2C3749;margin-bottom:8px}
+
+  /* review */
+  .qcard{padding:22px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .qcard .qn{font-family:var(--mono);font-size:10px;color:var(--violet);letter-spacing:.2em;margin-bottom:6px}
+  .qcard label{display:block;font-size:16px;letter-spacing:-.01em;margin-bottom:10px}
+  .qcard textarea{width:100%;background:transparent;border:0;border-bottom:1px solid #202A3A;padding:6px 0 10px;font-size:14px;line-height:1.7;resize:vertical;outline:none;color:#DCE5F2}
+  .qcard textarea::placeholder{color:#3E4B60}
+  .qcard textarea:focus{border-color:rgba(167,139,250,.5)}
+  .review-foot{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+  .saved{color:var(--green);font-size:11px}
+
+  /* ai chat */
+  .chat{margin-top:22px;border:1px solid #1B2230;border-radius:18px;background:#0A0E16;overflow:hidden}
+  .chat-h{display:flex;align-items:center;gap:9px;padding:12px 15px;border-bottom:1px solid #1B2230;font-size:11px;color:var(--muted)}
+  .chat-h .mdl{margin-left:auto;font-family:var(--mono);font-size:9px;color:#C4B5FD;border:1px solid rgba(167,139,250,.25);border-radius:999px;padding:2px 8px}
+  .msgs{padding:16px 15px;display:grid;gap:12px;min-height:260px;max-height:44vh;overflow:auto}
+  .msg{max-width:86%;font-size:12.5px;line-height:1.65;padding:10px 13px;border-radius:14px}
+  .msg.ai{background:#111826;border:1px solid #202A3A;color:#D5DEEB;border-bottom-left-radius:4px;justify-self:start}
+  .msg.me{background:rgba(167,139,250,.14);border:1px solid rgba(167,139,250,.25);color:#EDE9FE;border-bottom-right-radius:4px;justify-self:end}
+  .msg .acts{display:flex;gap:6px;margin-top:8px}
+  .msg .acts button{font-size:9.5px;padding:3px 8px;border-radius:6px;border:1px solid #2A3446;background:transparent;color:var(--muted)}
+  .chat-in{display:flex;gap:8px;padding:10px;border-top:1px solid #1B2230}
+  .chat-in input{flex:1;background:transparent;border:0;outline:none;padding:8px;font-size:12.5px}
+  .chat-in button{border:0;border-radius:9px;background:#EDE9FE;color:#1B1233;padding:8px 13px;font-size:11.5px;font-weight:600}
+  .typing{display:inline-flex;gap:3px;padding:4px 2px}
+  .typing i{width:4px;height:4px;border-radius:50%;background:#7C8AA0;animation:bl 1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+  /* capture */
+  .cap{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;width:min(760px,calc(100% - 32px));z-index:50;display:flex;align-items:center;gap:7px;padding:7px;border-radius:16px;background:rgba(12,16,25,.93);border:1px solid #26303F;backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .cap input{flex:1;min-width:0;background:transparent;border:0;outline:none;padding:9px 10px;font-size:13px}
+  .cap input::placeholder{color:#4A586E}
+  .cap .tagb{flex:none;font-size:9.5px;color:#C4B5FD;border:1px solid rgba(167,139,250,.24);background:rgba(167,139,250,.07);border-radius:999px;padding:4px 9px}
+  .cap .send{flex:none;border:0;border-radius:10px;background:#EDE9FE;color:#1B1233;font-weight:600;font-size:11.5px;padding:9px 13px}
+  .cap .send:hover{background:#fff}
+  .cap kbd{font-family:var(--mono);font-size:8.5px;color:#3E4B60;border:1px solid #26303F;border-radius:3px;padding:0 4px;flex:none}
+
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:86px;z-index:80;background:#141126;border:1px solid rgba(167,139,250,.35);color:#EDE9FE;font-size:11.5px;padding:9px 14px;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.5);animation:up .2s ease both}
+  .foot{margin:30px 0 8px;color:#3B475C;font-size:9.5px;font-family:var(--mono);letter-spacing:.05em;text-align:center}
+
+  @media (max-width:720px){
+    .top{height:58px;padding:0 14px;gap:8px}
+    .brand{font-size:10px;letter-spacing:.16em}
+    .date-chip{display:none}
+    .tabs button{font-size:11px;padding:5px 10px}
+    .wrap{padding:0 16px 140px}
+    .day-head{padding:32px 0 20px}
+    .day-head h1{font-size:34px}
+    .now-card{gap:14px;padding:15px;flex-wrap:wrap}
+    .now-time{font-size:26px}
+    .start{width:100%;text-align:center}
+    .hour{grid-template-columns:46px 1fr;gap:12px}
+    .tl::before{left:46px}
+    .hour .h{padding-right:10px;font-size:9px}
+    .hour .h::after{right:-3px}
+    .now-line::before{margin-left:43px}
+    .ev{padding:11px 12px}
+    .stats3{grid-template-columns:1fr 1fr}
+    .s3:last-child{grid-column:span 2}
+    .prompt .pt{font-size:17px}
+    .cap{bottom:12px;width:calc(100% - 24px)}
+    .cap kbd{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">DAY<i>.</i>WORKBENCH</div>
+  <nav class="tabs" id="tabs">
+    <button class="on" data-page="today">今天</button>
+    <button data-page="week">本周</button>
+    <button data-page="notes">记录</button>
+    <button data-page="review">复盘</button>
+    <button data-page="ai">AI</button>
+  </nav>
+  <div class="date-chip" id="top-date">2026.11.02 / 周日</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ 今天 ============ -->
+  <section class="page on" id="page-today">
+    <div class="day-head">
+      <div class="eyebrow"><span id="day-en">SUNDAY · 2026.11.02</span></div>
+      <h1>今天，<em>慢慢来。</em></h1>
+      <div class="day-meta">
+        <div class="ring">
+          <svg width="46" height="46" viewBox="0 0 46 46">
+            <circle cx="23" cy="23" r="19" fill="none" stroke="#1B2331" stroke-width="2.5"></circle>
+            <circle id="ring-fg" cx="23" cy="23" r="19" fill="none" stroke="#A78BFA" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" style="transition:stroke-dashoffset .4s"></circle>
+          </svg>
+          <span class="pct" id="ring-pct">0%</span>
+        </div>
+        <span id="meta-line">加载中…</span>
+      </div>
+    </div>
+
+    <div class="now-card">
+      <div class="now-time" id="clock">14:20</div>
+      <div class="now-body">
+        <div class="now-k">NOW · 下一件</div>
+        <div class="now-t">录一条「个人工作台」短视频</div>
+        <div class="now-m">14:00–15:00 · 自媒体 · 脚本已就绪</div>
+      </div>
+      <button class="start" id="start-focus">开始专注 →</button>
+    </div>
+
+    <div class="tl" id="timeline"></div>
+
+    <div class="tray">
+      <h3>随时可做 · 没有固定时间</h3>
+      <div class="chips" id="tray"></div>
+    </div>
+
+    <div class="prompt">
+      <div class="pt">21:30</div>
+      <div class="pb"><b>今日复盘 · 3 个问题</b><small>30 秒，给今天一个句号</small></div>
+      <button class="btn-v" data-page="review">现在写 →</button>
+    </div>
+
+    <div class="foot">UI 原型 · 方向 B · 示例数据 · 刷新即重置</div>
+  </section>
+
+  <!-- ============ 本周 ============ -->
+  <section class="page" id="page-week">
+    <div class="ph">
+      <div class="eyebrow">WEEK 45 · 10.27 – 11.02</div>
+      <h1>这一周，走得怎么样？</h1>
+      <p>不用每天都满格。能看见节奏，就够了。</p>
+    </div>
+    <div class="stats3">
+      <div class="s3"><div class="k">完成任务</div><strong>18<span> / 24</span></strong></div>
+      <div class="s3"><div class="k">记录</div><strong>12<span> 条</span></strong></div>
+      <div class="s3"><div class="k">复盘</div><strong>5<span> / 7 天</span></strong></div>
+    </div>
+    <div class="week-list" id="week-list"></div>
+
+    <div class="prompt" style="margin-top:22px">
+      <div class="pt">AI</div>
+      <div class="pb"><b>本周小结初稿</b><small>周二、周四的论文时间被会议挤掉了；短视频产出稳定。</small></div>
+      <button class="btn-v" id="week-ai">重新生成</button>
+    </div>
+    <div class="foot">正式版数据来自真实任务与复盘，不是写死的。</div>
+  </section>
+
+  <!-- ============ 记录 ============ -->
+  <section class="page" id="page-notes">
+    <div class="ph">
+      <div class="eyebrow">NOTES</div>
+      <h1>扔进来的东西。</h1>
+      <p>先不用整理。写下来，就已经比忘掉强。</p>
+    </div>
+    <input class="q-search" id="note-search" placeholder="搜记录…（试试「工作台」「客户」）">
+    <div id="note-list"></div>
+    <div class="foot">正式版支持 Markdown、标签、置顶、归档、全文搜索。</div>
+  </section>
+
+  <!-- ============ 复盘 ============ -->
+  <section class="page" id="page-review">
+    <div class="ph">
+      <div class="eyebrow">DAILY REVIEW · <span id="review-date">11.02</span></div>
+      <h1>今天，发生了什么？</h1>
+      <p>三个问题。不用写得好，写得真就行。</p>
+    </div>
+
+    <div class="qcard">
+      <div class="qn">01 / 做成了什么</div>
+      <label>哪怕只是把一封邮件发出去了。</label>
+      <textarea id="rq1" rows="3" placeholder="写下来，它才算数…"></textarea>
+    </div>
+    <div class="qcard">
+      <div class="qn">02 / 卡在哪</div>
+      <label>卡住的地方，往往就是明天的入口。</label>
+      <textarea id="rq2" rows="3" placeholder="别急着解决，先看见…"></textarea>
+    </div>
+    <div class="qcard">
+      <div class="qn">03 / 明天第一件</div>
+      <label>只写一件。明早打开就能做。</label>
+      <textarea id="rq3" rows="2" placeholder="一件事，越小越好…"></textarea>
+    </div>
+
+    <div class="review-foot">
+      <button class="btn-v" id="review-save">完成今日复盘</button>
+      <button class="btn-g" id="review-ai">✦ AI 起稿</button>
+      <span class="saved" id="review-ok"></span>
+    </div>
+    <div class="foot">正式版会保存到本地数据库，并累计连续天数。</div>
+  </section>
+
+  <!-- ============ AI ============ -->
+  <section class="page" id="page-ai">
+    <div class="ph">
+      <div class="eyebrow">AI · DEEPSEEK</div>
+      <h1>帮你收拾，不替你决定。</h1>
+      <p>整理、起草、查找。所有写入都要你点头。</p>
+    </div>
+    <div class="chat">
+      <div class="chat-h"><span class="dot side"></span> 工作台助手 <span class="mdl">deepseek-chat</span></div>
+      <div class="msgs" id="msgs">
+        <div class="msg ai">今天记了 3 条碎片。要我整理成任务，还是先放着？<div class="acts"><button data-q="整理成任务">整理成任务</button><button data-q="先放着">先放着</button></div></div>
+      </div>
+      <div class="chat-in">
+        <input id="chat-input" placeholder="说点什么，或让我整理今天的记录…">
+        <button id="chat-send">发送</button>
+      </div>
+    </div>
+    <div class="foot">原型里的回复是写死的；正式版才会真的调 DeepSeek。</div>
+  </section>
+
+</div>
+
+<div class="cap">
+  <button class="tagb" id="cap-tag">灵感</button>
+  <input id="cap-input" placeholder="记一笔…  想到什么就先扔进来">
+  <kbd>⌘↵</kbd>
+  <button class="send" id="cap-send">记录</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $=(s,el=document)=>el.querySelector(s);
+  const $$=(s,el=document)=>Array.from(el.querySelectorAll(s));
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  const now=new Date();
+  const DOW="日一二三四五六"[now.getDay()];
+  const MON="JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(" ");
+  $("#top-date").textContent=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")} / 周${DOW}`;
+  $("#day-en").textContent=`${["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]} · ${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}`;
+  $("#review-date").textContent=`${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}`;
+  $("#clock").textContent="14:20";
+
+  /* ---- events ---- */
+  let events=[
+    {id:1,hour:8,time:"08:30",title:"晨间计划",cat:"work",meta:"例行 · 10 分钟",done:true},
+    {id:2,hour:9,time:"09:30",title:"客户周会：过一遍 Q4 方案",cat:"work",meta:"客户 A · 60 分钟",done:false},
+    {id:3,hour:11,time:"11:00",title:"把周报写完发出去",cat:"work",meta:"内部 · 45 分钟",done:false},
+    {id:4,hour:14,time:"14:00",title:"录一条「个人工作台」短视频",cat:"side",meta:"自媒体 · 脚本已就绪",done:false},
+    {id:5,hour:16,time:"16:30",title:"读《研究设计》第 4 章并做笔记",cat:"study",meta:"研究生 · 60 分钟",done:false},
+    {id:6,hour:19,time:"19:00",title:"课程直播",cat:"study",meta:"在职研究生 · 60 分钟",done:false},
+    {id:7,hour:21,time:"21:30",title:"今日复盘 · 3 个问题",cat:"work",meta:"30 秒",done:false}
+  ];
+  let tray=[
+    {id:101,title:"小红书选题 3 条",cat:"side"},
+    {id:102,title:"预约体检",cat:"work"},
+    {id:103,title:"整理桌面与下载文件夹",cat:"work"}
+  ];
+
+  function renderTimeline(){
+    const wrap=$("#timeline");
+    let html="";
+    for(let h=8;h<=21;h++){
+      const list=events.filter(e=>e.hour===h);
+      html+=`<div class="hour ${list.length?"has":""}"><div class="h">${String(h).padStart(2,"0")}</div><div class="slot">`;
+      list.forEach(e=>{
+        html+=`<div class="ev ${e.done?"done":""}" data-ev="${e.id}">
+          <span class="time">${e.time}</span>
+          <div class="body"><div class="t">${esc(e.title)}</div><div class="m"><span class="dot ${e.cat}"></span>${esc(e.meta)}</div></div>
+          <span class="ck">✓</span>
+        </div>`;
+      });
+      if(h===14) html+=`<div class="now-line">现在 · 进行中</div>`;
+      html+=`</div></div>`;
+    }
+    wrap.innerHTML=html;
+    updateProgress();
+  }
+  function updateProgress(){
+    const total=events.length, done=events.filter(e=>e.done).length;
+    const pct=total?Math.round(done/total*100):0;
+    $("#meta-line").textContent=`${total-done} 件待办 · ${done} 件已完成 · 共 ${total} 件`;
+    $("#ring-pct").textContent=pct+"%";
+    const c=2*Math.PI*19;
+    $("#ring-fg").style.strokeDashoffset=String(c*(1-done/total));
+  }
+  function toggleEv(id){
+    const e=events.find(x=>x.id===id); if(!e) return;
+    e.done=!e.done; renderTimeline();
+    toast(e.done?"完成 · 记下这一刻":"已撤销");
+  }
+  document.addEventListener("click",ev=>{
+    const t=ev.target.closest("[data-ev]");
+    if(t){ toggleEv(Number(t.dataset.ev)); }
+  });
+
+  function renderTray(){
+    $("#tray").innerHTML=tray.map(t=>`<button class="chip" data-tray="${t.id}"><span class="plus">＋</span>${esc(t.title)}</button>`).join("")||`<span style="color:#3E4B60;font-size:11px">都安排好了</span>`;
+  }
+  document.addEventListener("click",ev=>{
+    const b=ev.target.closest("[data-tray]"); if(!b) return;
+    const id=Number(b.dataset.tray);
+    const item=tray.find(x=>x.id===id); if(!item) return;
+    const hour=15;
+    const taken=events.filter(e=>e.hour===hour).length;
+    events.push({id:Date.now(),hour,time:`15:${String(taken*20).padStart(2,"0")}`,title:item.title,cat:item.cat,meta:"刚安排 · 30 分钟",done:false});
+    tray=tray.filter(x=>x.id!==id);
+    renderTray(); renderTimeline();
+    toast("已安排到 15:00");
+  });
+
+  /* ---- tabs ---- */
+  function go(page){
+    $$(".page").forEach(p=>p.classList.toggle("on",p.id==="page-"+page));
+    $$("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.page===page));
+    window.scrollTo({top:0,behavior:"smooth"});
+    if(page==="notes") renderNotes();
+    if(page==="week") renderWeek();
+  }
+  document.addEventListener("click",e=>{
+    const b=e.target.closest("[data-page]"); if(b) go(b.dataset.page);
+  });
+
+  /* ---- toast ---- */
+  let tEl=null,tTimer=null;
+  function toast(msg){
+    if(tEl) tEl.remove(); clearTimeout(tTimer);
+    tEl=document.createElement("div"); tEl.className="toast"; tEl.textContent=msg;
+    document.body.appendChild(tEl);
+    tTimer=setTimeout(()=>{tEl&&tEl.remove();tEl=null;},2200);
+  }
+
+  /* ---- week ---- */
+  const week=[
+    {d:"MON",n:27,pct:80,txt:"6 完成 · 1 记录"},
+    {d:"TUE",n:28,pct:45,txt:"3 完成 · 会议挤掉论文"},
+    {d:"WED",n:29,pct:90,txt:"7 完成 · 拍摄顺利"},
+    {d:"THU",n:30,pct:30,txt:"2 完成 · 状态一般"},
+    {d:"FRI",n:31,pct:70,txt:"5 完成 · 周报发出"},
+    {d:"SAT",n:1,pct:35,txt:"2 完成 · 补觉"},
+    {d:"SUN",n:2,pct:55,txt:"进行中 · 还有 5 件",today:true}
+  ];
+  function renderWeek(){
+    $("#week-list").innerHTML=week.map(w=>`<div class="wrow ${w.today?"today":""}" data-day="${w.d}">
+      <div class="d">${w.d}<b>${String(w.n).padStart(2,"0")}</b></div>
+      <div><div class="bar"><i style="width:${w.pct}%"></i></div><div style="font-size:10px;color:#55637A;margin-top:5px">${esc(w.txt)}</div></div>
+      <div class="n">${w.pct}%</div>
+    </div>`).join("");
+  }
+  document.addEventListener("click",e=>{
+    const w=e.target.closest("[data-day]"); if(w) toast(`查看 ${w.dataset.day}（原型只做提示）`);
+  });
+  $("#week-ai").onclick=()=>toast("AI 已重新生成周小结（示例）");
+
+  /* ---- notes ---- */
+  const notes=[
+    {id:1,title:"选题：把工作台做成「人生 OS」的入口",tag:"灵感",time:"今天 14:12",body:"不要做成又一个待办 App。入口应该是「今天」：打开就知道现在该做什么，做完能记一笔，周末能回头看见自己走了多远。"},
+    {id:2,title:"客户 A 关心预算，下次带两个方案",tag:"工作",time:"今天 10:40",body:"会上他没有直接否，但反复问「能不能先小范围试」。下次带保守版（两周试点）和完整版（一次交付、可分期）两个方案。"},
+    {id:3,title:"论文变量再确认：中介效应",tag:"学习",time:"昨天 22:05",body:"自变量：工作自主性；中介：心理所有权；因变量：创新行为。下周先把量表来源补齐，再跑预调研。"},
+    {id:4,title:"晚上别把手机带上床",tag:"生活",time:"昨天 23:40",body:"连续三天刷到一点。明天试试把充电器放到客厅。"}
+  ];
+  function renderNotes(q=""){
+    const list=notes.filter(n=>!q||(n.title+n.body+n.tag).toLowerCase().includes(q.toLowerCase()));
+    $("#note-list").innerHTML=list.length?list.map(n=>`<article class="note">
+      <div class="nm"><span class="tg">${esc(n.tag)}</span><span>${esc(n.time)}</span></div>
+      <div class="nt">${esc(n.title)}</div>
+      <div class="nx">${esc(n.body)}</div>
+    </article>`).join(""):`<div class="empty"><div class="g">◌</div>没有找到「${esc(q)}」<br><span style="font-size:10px">换个词，或直接用下面的输入框记一笔</span></div>`;
+  }
+  $("#note-search").addEventListener("input",e=>renderNotes(e.target.value.trim()));
+
+  /* ---- capture ---- */
+  const TAGS=["灵感","工作","学习","生活"];
+  let tagIdx=0;
+  $("#cap-tag").onclick=()=>{ tagIdx=(tagIdx+1)%TAGS.length; $("#cap-tag").textContent=TAGS[tagIdx]; };
+  function capture(){
+    const input=$("#cap-input"); const text=input.value.trim();
+    if(!text){ toast("先写点什么"); return; }
+    notes.unshift({id:Date.now(),title:text.slice(0,26),tag:TAGS[tagIdx],time:"刚刚",body:text});
+    input.value=""; renderNotes($("#note-search").value.trim());
+    toast("已记下 · 之后可整理");
+  }
+  $("#cap-send").onclick=capture;
+  $("#cap-input").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();capture();} });
+  document.addEventListener("keydown",e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); $("#cap-input").focus(); }
+  });
+
+  /* ---- review ---- */
+  $("#review-save").onclick=()=>{
+    const vals=["#rq1","#rq2","#rq3"].map(s=>$(s).value.trim()).filter(Boolean);
+    if(!vals.length){ toast("至少写一句"); return; }
+    $("#review-ok").textContent="已保存 · 连续 13 天";
+    toast("今日复盘已保存");
+  };
+  $("#review-ai").onclick=()=>{
+    $("#rq1").value="把客户 A 的预算顾虑记下来了，短视频也按计划拍了。";
+    $("#rq2").value="周报拖到下午，因为上午会议超时。";
+    $("#rq3").value="九点先写周报，再开消息。";
+    toast("AI 起稿完成 · 改完再保存");
+  };
+
+  /* ---- ai chat ---- */
+  function addMsg(text,who){
+    const d=document.createElement("div"); d.className="msg "+who; d.textContent=text;
+    $("#msgs").appendChild(d); $("#msgs").scrollTop=$("#msgs").scrollHeight;
+    return d;
+  }
+  function aiReply(q){
+    const typing=document.createElement("div"); typing.className="msg ai";
+    typing.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+    $("#msgs").appendChild(typing); $("#msgs").scrollTop=$("#msgs").scrollHeight;
+    setTimeout(()=>{
+      typing.remove();
+      let text="我把今天的 3 条记录看了一遍：一条是选题，一条是客户预算，一条是论文变量。建议先把「客户 A 两个方案」和「周四前剪完视频」放进任务，论文那节拆到周二晚上。要我直接建吗？";
+      if(q.includes("任务")) text="可以。我建议建 3 条：① 给客户 A 准备试点/完整两个方案（高）；② 周四前剪完短视频（高）；③ 补论文中介效应一节（中）。确认后我才会写进去。";
+      if(q.includes("周")) text="本周完成 18/24，记录 12 条，复盘 5 天。最大的问题是周二、周四的论文时间被会议挤掉。下周先把这两个晚上锁死，其他都好说。";
+      const m=addMsg(text,"ai");
+      const acts=document.createElement("div"); acts.className="acts";
+      acts.innerHTML='<button>建任务</button><button>再改改</button>';
+      m.appendChild(acts);
+    },700);
+  }
+  $("#chat-send").onclick=()=>{
+    const input=$("#chat-input"); const v=input.value.trim(); if(!v) return;
+    addMsg(v,"me"); input.value=""; aiReply(v);
+  };
+  $("#chat-input").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#chat-send").click(); } });
+  document.addEventListener("click",e=>{
+    const b=e.target.closest("[data-q]"); if(b){ addMsg(b.dataset.q,"me"); aiReply(b.dataset.q); }
+  });
+
+  $("#start-focus").onclick=()=>toast("专注计时开始（示例）· 25:00");
+
+  renderTimeline(); renderTray(); renderNotes(); renderWeek();
+})();
+</script>
+</body>
+</html>

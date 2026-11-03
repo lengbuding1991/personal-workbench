@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "project_name": "个人工作台",
+  "phase": "qa",
+  "created_at": "2026-11-02T12:49:51Z",
+  "updated_at": "2026-11-03T13:20:00Z",
+  "primary_scenario": "个人人生工作台：待办→完成复盘、记录+查找、日程+提醒（通用底座，模块后加）",
+  "primary_device": "desktop",
+  "data_mode": "local",
+  "feature_confirmation": {
+    "confirmed": true,
+    "confirmed_at": "2026-11-02T12:57:46Z"
+  },
+  "ui_confirmation": {
+    "confirmed": true,
+    "choice": "E · 清透蓝绿成长工作台（参考图配色/布局，2026-11-02 第二轮定稿）",
+    "confirmed_at": "2026-11-02T13:45:00Z",
+    "supersedes": "D · 暖白工作室（已归档，仅 prototypes/d-studio.html 保留）"
+  },
+  "third_party_dependencies": [
+    {
+      "name": "AI 模型 API（DeepSeek，OpenAI 兼容）",
+      "type": "user-action",
+      "status": "pending"
+    }
+  ],
+  "deployment": {
+    "status": "not-started",
+    "provider": null,
+    "url": null
+  },
+  "pwa": {
+    "status": "not-started"
+  },
+  "qa": {
+    "status": "verified",
+    "round": "第七轮：日历覆盖 0:00–24:00（bug 修复）",
+    "verified": [
+      "tsc",
+      "build",
+      "9 routes 200",
+      "任务三态",
+      "列表乐观更新与撤销",
+      "日历点开编辑",
+      "命令面板↑↓↵",
+      "周复盘AI按钮可用",
+      "任务多选批量",
+      "记录删除撤销",
+      "任务看板拖拽改状态（todo 3 / doing 2 / done 2）",
+      "首页看板拖拽改状态（done 2→3）",
+      "日历周视图日程拖动改时间与日期（DTO 持久化 2026-11-04T11:30）",
+      "日历日视图日程拖动（9:30→11:30）",
+      "1440 宽下列宽与表头对齐（7×142px）",
+      "390/500 宽无横向溢出",
+      "第五轮（2026-11-03）：首页 1180px 两列断点半行空洞已消除；看板列改为内容高度 + 底部「＋ 添加任务」虚线卡；月历/本周小结卡片内撑满；记录页撑满视口并在列表下方补「随手记一句」引导块与底部周记录 sparkline；复盘页历史区独立滚动 + 补位提示；设置页两栏等高并补「你积累了多少 / 小技巧」两块；tsc 与 build 通过，9 路由 200。",
+      "第六轮（2026-11-03）：任务页看板下方新增「最近七天收尾节奏」（7 条横向进度行，今天高亮）与「刚刚做完的」（最近完成 4 条 + 补位虚线提示 + 累计统计），1440/1228 下 /tasks 一屏铺满（docH=1000）无底部空洞，且未拉高看板列；设置页统计四宫格改为 flex 撑满 + 字号加大；tsc 与 build 通过，9 路由 200。",
+      "第七轮（2026-11-03）：日历时间轴 DAY_START 由 6 改为 0，覆盖 0:00–24:00 全天；凌晨 0–6 点加淡灰蓝底带区分；空闲块只在 7:00–23:00 计算；打开时滚到当前时间前 3 小时；小时刻度补零。实测 scrollTop=0 可见 00:00、gutter 与全天行无重叠；1440 周/日视图与 390px 手机截图复查通过，scrollWidth=390 无横向溢出；tsc 与 build 通过。"
+    ],
+    "unverified": [
+      "AI 真实调用（ai_key 当前为空，需用户重新填写）",
+      "390px 真机（已用 CDP 模拟 390 复查，未上真机）",
+      "生产模式长时间使用"
+    ],
+    "note": "自动化测试必须在 WORKBENCH_DATA_DIR 临时目录下进行"
+  }
+}

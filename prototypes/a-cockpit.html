@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方向 A · 驾驶舱 | 个人工作台原型</title>
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --bg:#06080D; --panel:#0B0F16; --panel2:#0E131C; --line:#1B2331; --line2:#26303F;
+    --text:#E8EEF8; --muted:#7E8CA3; --dim:#55637A;
+    --cyan:#22D3EE; --violet:#8B5CF6; --green:#34D399; --amber:#FBBF24; --red:#F87171;
+    --r:14px; --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1100px 560px at 12% -12%,rgba(34,211,238,.10),transparent 62%),
+      radial-gradient(900px 520px at 100% 0%,rgba(139,92,246,.10),transparent 58%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit;cursor:pointer}
+  input,textarea,select{font:inherit;color:inherit}
+  ::selection{background:rgba(34,211,238,.25)}
+  [hidden]{display:none!important}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+
+  /* ---------- rail ---------- */
+  .rail{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;background:rgba(7,10,15,.72);backdrop-filter:blur(14px);z-index:30}
+  .brand{display:flex;align-items:center;gap:10px;padding:2px 4px}
+  .logo{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#04070C;font-weight:800;font-size:15px;box-shadow:0 0 24px rgba(34,211,238,.28)}
+  .brand strong{display:block;font-size:14px;letter-spacing:.02em}
+  .brand small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--dim);margin-top:1px}
+  .nav{margin-top:26px;display:grid;gap:3px}
+  .nav button{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);text-align:left;font-size:13.5px;transition:.16s}
+  .nav button .ico{width:18px;text-align:center;font-size:13px;color:var(--dim)}
+  .nav button kbd{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:rgba(255,255,255,.02)}
+  .nav button:hover{background:rgba(255,255,255,.03);color:var(--text)}
+  .nav button.active{background:linear-gradient(90deg,rgba(34,211,238,.13),rgba(34,211,238,.01));color:#CFFAFE;border-color:rgba(34,211,238,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+  .nav button.active .ico{color:var(--cyan)}
+  .rail-bottom{margin-top:auto;display:grid;gap:8px}
+  .rail-bottom button{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);font-size:13px}
+  .rail-bottom button:hover{background:rgba(255,255,255,.03);color:var(--text)}
+  .user{display:flex;align-items:center;gap:9px;padding:9px 10px;border-top:1px solid var(--line);margin-top:4px}
+  .avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#1F2937,#0F172A);border:1px solid var(--line2);display:grid;place-items:center;font-size:11px;color:var(--cyan)}
+  .user small{color:var(--dim);font-size:11px}
+
+  /* ---------- top ---------- */
+  main{min-width:0}
+  .topbar{position:sticky;top:0;z-index:20;height:62px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 26px;border-bottom:1px solid var(--line);background:rgba(6,8,13,.78);backdrop-filter:blur(14px)}
+  .crumb{font-size:12.5px;color:var(--muted)}
+  .crumb b{color:var(--text);font-weight:600}
+  .top-actions{display:flex;align-items:center;gap:8px}
+  .proto-pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:#A5F3FC;border:1px solid rgba(34,211,238,.28);background:rgba(34,211,238,.07);border-radius:999px;padding:3px 9px;margin-right:4px;white-space:nowrap}
+  .ghost{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--muted);font-size:12.5px;display:inline-flex;align-items:center;gap:7px;transition:.16s}
+  .ghost:hover{border-color:var(--line2);color:var(--text);background:rgba(255,255,255,.04)}
+  .ghost kbd{font-family:var(--mono);font-size:9px;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  .primary{background:linear-gradient(180deg,#3BE4F5,#12B8D0);border:1px solid rgba(34,211,238,.5);color:#031014;font-weight:600;border-radius:8px;padding:7px 12px;font-size:12.5px;box-shadow:0 4px 18px rgba(34,211,238,.18);transition:.16s}
+  .primary:hover{filter:brightness(1.06);box-shadow:0 6px 24px rgba(34,211,238,.28)}
+
+  .content{max-width:1320px;padding:26px;margin:0 auto}
+  .page{display:none}
+  .page.active{display:block;animation:rise .28s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- hero ---------- */
+  .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;padding:6px 2px 22px;flex-wrap:wrap}
+  .eyebrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:#67E8F9;text-transform:uppercase}
+  .pulse{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 0 rgba(34,211,238,.6);animation:pulse 2.2s infinite}
+  @keyframes pulse{70%{box-shadow:0 0 0 7px rgba(34,211,238,0)}100%{box-shadow:0 0 0 0 rgba(34,211,238,0)}}
+  .hero h1{margin:10px 0 6px;font-size:30px;line-height:1.25;letter-spacing:-.02em;font-weight:600}
+  .hero .sub{margin:0;color:var(--muted);font-size:13px}
+  .hero-tags{display:flex;gap:6px;margin-top:12px}
+  .tag{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--muted)}
+  .tag.cyan{color:#A5F3FC;border-color:rgba(34,211,238,.3);background:rgba(34,211,238,.06)}
+  .tag.violet{color:#DDD6FE;border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.08)}
+  .tag.amber{color:#FDE68A;border-color:rgba(251,191,36,.25);background:rgba(251,191,36,.06)}
+
+  .stats{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{min-width:126px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .stat .k{font-size:10px;color:var(--dim);letter-spacing:.06em}
+  .stat strong{display:block;margin:3px 0 7px;font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat strong span{font-size:11px;color:var(--dim);font-weight:400;margin-left:1px}
+  .bar{height:4px;border-radius:99px;background:#141B26;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),#67E8F9);border-radius:99px;transition:width .3s}
+  .spark{display:flex;align-items:flex-end;gap:2px;height:18px}
+  .spark i{flex:1;background:rgba(34,211,238,.35);border-radius:1px}
+  .dots{display:flex;gap:3px;margin-top:2px}
+  .dots i{width:6px;height:6px;border-radius:2px;background:#1B2432}
+  .dots i.on{background:var(--cyan)}
+
+  /* ---------- grid & cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:18px}
+  .card{grid-column:span 12;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:var(--r);padding:16px;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);pointer-events:none}
+  .span-7{grid-column:span 7}.span-5{grid-column:span 5}.span-4{grid-column:span 4}.span-3{grid-column:span 3}
+  .card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .card-h h2{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:#9FB0C7;text-transform:uppercase;font-weight:500}
+  .card-h .count{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:1px 7px}
+  .seg{display:flex;gap:2px;background:#080B11;border:1px solid var(--line);border-radius:7px;padding:2px}
+  .seg button{border:0;background:transparent;color:var(--dim);font-size:10.5px;padding:3px 8px;border-radius:5px}
+  .seg button.on{background:#151C27;color:#CFFAFE}
+  .more{border:0;background:transparent;color:var(--dim);font-size:15px;padding:0 2px}
+  .more:hover{color:var(--text)}
+
+  /* ---------- tasks ---------- */
+  .tasks{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+  .task{display:flex;align-items:flex-start;gap:11px;padding:10px 8px;border:1px solid transparent;border-radius:9px;transition:.14s;cursor:pointer}
+  .task:hover{background:rgba(255,255,255,.025);border-color:var(--line)}
+  .check{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;border:1.5px solid #3B4759;background:transparent;color:transparent;font-size:10px;display:grid;place-items:center;transition:.15s;padding:0}
+  .check:hover{border-color:var(--cyan)}
+  .task.done .check{background:rgba(52,211,153,.14);border-color:var(--green);color:var(--green)}
+  .t-main{min-width:0;flex:1}
+  .t-title{font-size:13.5px;line-height:1.4;transition:.15s}
+  .task.done .t-title{text-decoration:line-through;color:var(--dim);text-decoration-color:#3B4759}
+  .t-meta{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:10.5px;color:var(--dim)}
+  .pill{font-family:var(--mono);font-size:9px;padding:0 5px;border-radius:3px;border:1px solid var(--line2);line-height:15px}
+  .pill.high{color:#FCA5A5;border-color:rgba(248,113,113,.32);background:rgba(248,113,113,.07)}
+  .pill.mid{color:#FCD34D;border-color:rgba(251,191,36,.28);background:rgba(251,191,36,.06)}
+  .pill.low{color:#93C5FD;border-color:rgba(147,197,253,.25);background:rgba(147,197,253,.05)}
+  .dotsep{color:#2C3749}
+  .t-cat{flex:none;font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-top:1px}
+  .t-cat.work{color:#A5F3FC;border-color:rgba(34,211,238,.22)}
+  .t-cat.side{color:#DDD6FE;border-color:rgba(139,92,246,.25)}
+  .t-cat.study{color:#FDE68A;border-color:rgba(251,191,36,.22)}
+
+  /* ---------- schedule ---------- */
+  .sched{display:grid;gap:0}
+  .sched-row{display:grid;grid-template-columns:42px 1fr;gap:10px;min-height:36px;padding:3px 0;border-top:1px dashed rgba(255,255,255,.045)}
+  .sched-row:first-child{border-top:0}
+  .sched-row>span{font-family:var(--mono);font-size:9.5px;color:var(--dim);padding-top:5px}
+  .event{border-left:2px solid rgba(34,211,238,.6);background:linear-gradient(90deg,rgba(34,211,238,.09),rgba(34,211,238,.02));border-radius:0 7px 7px 0;padding:6px 9px;font-size:11.5px;color:#CFFAFE}
+  .event small{display:block;font-size:9.5px;color:#67E8F9;margin-top:1px}
+  .event.violet{border-color:rgba(139,92,246,.7);background:linear-gradient(90deg,rgba(139,92,246,.11),rgba(139,92,246,.02));color:#EDE9FE}
+  .event.violet small{color:#C4B5FD}
+  .now-row{position:relative}
+  .now-mark{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:9px;color:#FCA5A5;margin:2px 0 4px}
+  .now-mark::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--red);box-shadow:0 0 8px rgba(248,113,113,.8)}
+  .now-mark::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,rgba(248,113,113,.5),transparent)}
+
+  /* ---------- capture / review / ai ---------- */
+  .field{width:100%;background:#070A11;border:1px solid var(--line);border-radius:9px;padding:9px 10px;color:var(--text);font-size:12.5px;resize:vertical;outline:none;transition:.15s}
+  .field:focus{border-color:rgba(34,211,238,.45);box-shadow:0 0 0 3px rgba(34,211,238,.07)}
+  .field::placeholder{color:#46536A}
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .chips{display:flex;gap:5px;margin:9px 0}
+  .chip{font-size:10.5px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--dim)}
+  .chip.on{color:#A5F3FC;border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.07)}
+  .btn-sm{background:#141B26;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;font-size:11.5px;color:#C7D3E3}
+  .btn-sm:hover{border-color:#34415366;background:#1A2230}
+  .btn-ghost{background:transparent;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:11.5px;color:var(--muted)}
+  .btn-ghost:hover{color:var(--text);border-color:var(--line2)}
+  .q{display:grid;gap:4px;margin-bottom:10px}
+  .q label{font-size:10.5px;color:var(--dim)}
+  .q input{background:transparent;border:0;border-bottom:1px solid var(--line);padding:5px 0;outline:none;font-size:12.5px;color:var(--text)}
+  .q input:focus{border-color:rgba(34,211,238,.45)}
+  .ai-card{background:
+      radial-gradient(300px 160px at 100% 0%,rgba(139,92,246,.16),transparent 70%),
+      linear-gradient(180deg,var(--panel2),var(--panel))}
+  .ai-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:#C4B5FD;border:1px solid rgba(139,92,246,.3);background:rgba(139,92,246,.08);border-radius:999px;padding:2px 8px}
+  .ai-title{font-size:15px;margin:9px 0 4px;font-weight:600}
+  .muted{color:var(--muted);font-size:11.5px}
+  .empty{display:grid;place-items:center;gap:6px;padding:34px 10px;text-align:center;color:var(--dim);font-size:12px}
+  .empty .glyph{font-size:22px;color:#2C3749;margin-bottom:2px}
+
+  /* ---------- tables / lists ---------- */
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:2px 0 18px;flex-wrap:wrap}
+  .page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .page-head p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .filter{font-size:11.5px;padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--muted)}
+  .filter.on{background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.3);color:#A5F3FC}
+
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .day{background:#080C13;border:1px solid var(--line);border-radius:10px;padding:9px;min-height:150px}
+  .day .dow{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.1em}
+  .day .dnum{font-size:16px;margin:2px 0 8px;color:#C7D3E3}
+  .day.today{border-color:rgba(34,211,238,.4);background:linear-gradient(180deg,rgba(34,211,238,.07),#080C13)}
+  .day.today .dnum{color:#A5F3FC}
+  .ev{font-size:9.5px;line-height:1.35;padding:3px 5px;border-radius:4px;margin-bottom:3px;background:rgba(34,211,238,.08);color:#A5F3FC;border-left:1px solid rgba(34,211,238,.5)}
+  .ev.v{background:rgba(139,92,246,.09);color:#DDD6FE;border-color:rgba(139,92,246,.55)}
+  .ev.a{background:rgba(251,191,36,.07);color:#FDE68A;border-color:rgba(251,191,36,.4)}
+
+  .notes-wrap{display:grid;grid-template-columns:340px 1fr;gap:14px}
+  .note-list{display:grid;gap:6px;align-content:start}
+  .note-item{text-align:left;background:transparent;border:1px solid transparent;border-radius:9px;padding:10px;transition:.14s}
+  .note-item:hover{background:rgba(255,255,255,.025);border-color:var(--line)}
+  .note-item.on{background:rgba(34,211,238,.05);border-color:rgba(34,211,238,.22)}
+  .note-item .nt{font-size:12.5px;color:#DCE5F2;margin-bottom:3px;line-height:1.4}
+  .note-item .nm{font-size:10px;color:var(--dim);display:flex;gap:6px}
+  .note-body{font-size:13px;line-height:1.8;color:#B9C6D8;white-space:pre-wrap}
+  .note-body h3{font-size:15px;color:var(--text);margin:0 0 10px}
+  .tag-line{display:flex;gap:6px;margin-bottom:12px}
+
+  .kv{display:grid;gap:10px}
+  .kv .k{font-size:10px;color:var(--dim);letter-spacing:.08em;font-family:var(--mono)}
+  .kv .v{font-size:13px}
+  .setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .setting-row:last-child{border-bottom:0}
+  .setting-row p{margin:0;font-size:12.5px}
+  .setting-row small{display:block;color:var(--dim);font-size:10.5px;margin-top:2px}
+  .switch{width:34px;height:20px;border-radius:99px;background:#1A2230;border:1px solid var(--line2);position:relative;flex:none}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#5B6B82;transition:.18s}
+  .switch.on{background:rgba(34,211,238,.18);border-color:rgba(34,211,238,.4)}
+  .switch.on::after{left:16px;background:var(--cyan)}
+
+  /* ---------- modal ---------- */
+  .modal{position:fixed;inset:0;z-index:80;background:rgba(3,5,9,.72);backdrop-filter:blur(7px);display:grid;place-items:center;padding:20px}
+  .sheet{width:min(520px,100%);max-height:86vh;overflow:auto;background:#0B1018;border:1px solid #26303F;border-radius:16px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.65);animation:pop .18s ease both}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+  .sheet h3{margin:0 0 4px;font-size:16px}
+  .sheet .hint{margin:0 0 16px;color:var(--dim);font-size:11.5px}
+  .form-grid{display:grid;gap:11px}
+  .form-grid label{display:grid;gap:4px;font-size:10.5px;color:var(--dim)}
+  .form-grid input,.form-grid select,.form-grid textarea{background:#070A11;border:1px solid var(--line);border-radius:8px;padding:8px 9px;color:var(--text);font-size:12.5px;outline:none}
+  .form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus{border-color:rgba(34,211,238,.45)}
+  .form-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sheet-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .x{position:absolute;top:14px;right:14px;background:transparent;border:0;color:var(--dim);font-size:18px}
+
+  /* search */
+  .search-sheet{width:min(640px,100%);align-self:start;margin-top:9vh}
+  .search-input{width:100%;background:transparent;border:0;border-bottom:1px solid var(--line);padding:10px 2px;font-size:16px;outline:none;color:var(--text)}
+  .search-input::placeholder{color:#3E4B60}
+  .sres{display:grid;gap:3px;margin-top:12px;max-height:46vh;overflow:auto}
+  .sres button{display:flex;align-items:center;gap:10px;background:transparent;border:1px solid transparent;border-radius:8px;padding:9px;text-align:left;font-size:12.5px}
+  .sres button:hover{background:rgba(255,255,255,.03);border-color:var(--line)}
+  .sres .type{font-family:var(--mono);font-size:9px;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .sres .sub{margin-left:auto;font-size:10px;color:var(--dim)}
+
+  /* popover */
+  .popover{position:fixed;top:54px;right:78px;width:290px;background:#0B1018;border:1px solid #26303F;border-radius:12px;padding:10px;box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:70}
+  .popover .ph{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .pop-item{display:flex;gap:9px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.03);font-size:11.5px}
+  .pop-item:last-child{border-bottom:0}
+  .pop-item .pt{font-family:var(--mono);font-size:10px;color:#A5F3FC;flex:none}
+  .pop-note{padding:8px 4px 2px;color:var(--dim);font-size:9.5px}
+
+  /* toast */
+  .toast{position:fixed;right:22px;bottom:22px;z-index:100;display:flex;align-items:center;gap:9px;background:#0D1520;border:1px solid rgba(34,211,238,.35);color:#DFF9FE;border-radius:10px;padding:10px 14px;font-size:12px;box-shadow:0 16px 50px rgba(0,0,0,.55);animation:tin .22s ease both}
+  .toast::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px rgba(34,211,238,.8)}
+  @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .foot{margin:26px 2px 8px;color:#3D4A5F;font-size:10px;font-family:var(--mono);letter-spacing:.04em}
+
+  @media (max-width:1080px){
+    .span-7,.span-5,.span-4,.span-3{grid-column:span 12}
+    .notes-wrap{grid-template-columns:1fr}
+  }
+  @media (max-width:860px){
+    .app{grid-template-columns:1fr}
+    .rail{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;flex-direction:row;align-items:center;border-right:0;border-top:1px solid var(--line);padding:7px 9px;gap:4px;background:rgba(7,10,15,.96)}
+    .brand{display:none}
+    .nav{display:flex;margin:0;overflow:auto;gap:2px;flex:1}
+    .nav button{padding:7px 9px;font-size:11.5px;white-space:nowrap}
+    .nav button kbd,.nav button .ico{display:none}
+    .rail-bottom{display:none}
+    main{padding-bottom:64px}
+    .topbar{padding:0 14px;height:56px}
+    .proto-pill{display:none}
+    .content{padding:16px}
+    .hero h1{font-size:23px}
+    .stats{width:100%}
+    .stat{flex:1;min-width:0}
+    .week{grid-template-columns:repeat(2,1fr)}
+    .popover{right:12px;top:50px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">H</div>
+      <div><strong>个人工作台</strong><small>PERSONAL OS</small></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="active" data-page="today"><span class="ico">◈</span>今日<kbd>1</kbd></button>
+      <button data-page="tasks"><span class="ico">☰</span>任务<kbd>2</kbd></button>
+      <button data-page="calendar"><span class="ico">▦</span>日历<kbd>3</kbd></button>
+      <button data-page="notes"><span class="ico">✎</span>记录<kbd>4</kbd></button>
+      <button data-page="review"><span class="ico">◎</span>复盘<kbd>5</kbd></button>
+      <button data-page="ai"><span class="ico">✦</span>AI<kbd>6</kbd></button>
+    </nav>
+    <div class="rail-bottom">
+      <button data-page="settings"><span class="ico">⚙</span>设置与数据</button>
+      <div class="user"><div class="avatar">H</div><div><div style="font-size:11.5px">Hina</div><small>本地 · 未登录</small></div></div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumb"><b id="crumb-title">今日</b> / <span id="today-label">11月2日 · 周日</span></div>
+      <div class="top-actions">
+        <span class="proto-pill">UI 原型 · 示例数据</span>
+        <button class="ghost" id="search-open">⌕ 搜索 <kbd>⌘K</kbd></button>
+        <button class="ghost" id="bell-open" aria-label="提醒">◔</button>
+        <button class="primary" id="add-open">＋ 新任务</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ 今日 ============ -->
+      <section class="page active" id="page-today">
+        <div class="hero">
+          <div>
+            <div class="eyebrow"><span class="pulse"></span>TODAY · <span id="today-date"></span></div>
+            <h1>今天只做三件要紧事。</h1>
+            <p class="sub" id="hero-sub">其余都是加分项。先把 09:30 的客户周会过掉。</p>
+            <div class="hero-tags"><span class="tag cyan">工作</span><span class="tag violet">副业</span><span class="tag amber">研究生</span></div>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="k">今日完成</div>
+              <strong id="stat-done">2<span>/7</span></strong>
+              <div class="bar"><i id="stat-bar" style="width:29%"></i></div>
+            </div>
+            <div class="stat">
+              <div class="k">本周完成率</div>
+              <strong>72<span>%</span></strong>
+              <div class="spark"><i style="height:30%"></i><i style="height:52%"></i><i style="height:44%"></i><i style="height:66%"></i><i style="height:58%"></i><i style="height:80%"></i><i style="height:72%"></i></div>
+            </div>
+            <div class="stat">
+              <div class="k">连续记录</div>
+              <strong>12<span>天</span></strong>
+              <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <section class="card span-7">
+            <div class="card-h">
+              <h2>今日任务</h2>
+              <div class="seg" id="today-seg"><button class="on" data-f="all">全部</button><button data-f="work">工作</button><button data-f="side">副业</button><button data-f="study">学习</button></div>
+            </div>
+            <ul class="tasks" id="today-list"></ul>
+            <div class="row" style="margin-top:10px">
+              <button class="btn-ghost" id="add-open-2">＋ 加一件</button>
+              <span class="muted" style="margin-left:auto">点圆圈完成 · 再点撤销</span>
+            </div>
+          </section>
+
+          <section class="card span-5">
+            <div class="card-h"><h2>今日日程</h2><span class="count">3</span></div>
+            <div class="sched">
+              <div class="sched-row"><span>09</span><div><div class="event">客户周会 · 过 Q4 方案<small>09:30–10:30 · 客户 A</small></div></div></div>
+              <div class="sched-row"><span>10</span><div></div></div>
+              <div class="sched-row"><span>11</span><div><div class="event violet">写周报<small>11:00–12:00 · 内部</small></div></div></div>
+              <div class="sched-row"><span>13</span><div></div></div>
+              <div class="sched-row now-row"><span>14</span><div><div class="now-mark">现在 14:20</div><div class="event">拍摄：个人工作台短视频<small>14:00–15:00 · 自媒体</small></div></div></div>
+              <div class="sched-row"><span>16</span><div><div class="event violet">读《研究设计》第 4 章<small>16:30–17:30 · 研究生</small></div></div></div>
+              <div class="sched-row"><span>19</span><div><div class="event">课程直播<small>19:00–20:00 · 在职研究生</small></div></div></div>
+              <div class="sched-row"><span>21</span><div><div class="event violet">今日复盘<small>21:30 · 30 秒</small></div></div></div>
+            </div>
+          </section>
+
+          <section class="card span-5">
+            <div class="card-h"><h2>快速记录</h2><span class="count">≤10 秒</span></div>
+            <textarea class="field" id="capture-text" rows="3" placeholder="想到什么就先扔进来，不用整理…"></textarea>
+            <div class="chips" id="capture-tags">
+              <button class="chip on" data-tag="灵感">灵感</button>
+              <button class="chip" data-tag="工作">工作</button>
+              <button class="chip" data-tag="学习">学习</button>
+            </div>
+            <div class="row">
+              <button class="btn-sm" id="capture-save">存入记录</button>
+              <span class="muted" style="margin-left:auto">⌘↵</span>
+            </div>
+          </section>
+
+          <section class="card span-4">
+            <div class="card-h"><h2>今日复盘</h2><span class="count">3 问</span></div>
+            <div class="q"><label>今天做成了什么？</label><input id="q1" placeholder="哪怕很小的一件事"></div>
+            <div class="q"><label>哪里卡住了？</label><input id="q2" placeholder="写下来，明天绕开"></div>
+            <div class="q"><label>明天第一件事？</label><input id="q3" placeholder="只写一件"></div>
+            <div class="row" style="margin-top:4px">
+              <button class="btn-sm" id="review-save">保存复盘</button>
+              <button class="btn-ghost" id="review-ai">AI 起稿</button>
+            </div>
+          </section>
+
+          <section class="card span-3 ai-card">
+            <div class="ai-badge">✦ AI · DEEPSEEK</div>
+            <div class="ai-title">把碎片变成任务</div>
+            <p class="muted" style="margin:0 0 12px">把刚才记的几段话交给 AI，拆成可执行的任务，你确认后才入库。</p>
+            <button class="btn-sm" data-page="ai" id="ai-teaser">去整理 →</button>
+          </section>
+        </div>
+        <div class="foot">示例数据 · 刷新即重置 · 原型不连接真实数据库</div>
+      </section>
+
+      <!-- ============ 任务 ============ -->
+      <section class="page" id="page-tasks">
+        <div class="page-head">
+          <div><h1>任务</h1><p>所有任务都在这里；完成、撤销、按条件筛。</p></div>
+          <button class="primary" id="add-open-3">＋ 新任务</button>
+        </div>
+        <div class="filters" id="task-filters" style="margin-bottom:14px">
+          <button class="filter on" data-f="all">全部</button>
+          <button class="filter" data-f="open">未完成</button>
+          <button class="filter" data-f="done">已完成</button>
+          <button class="filter" data-f="work">工作</button>
+          <button class="filter" data-f="side">副业</button>
+          <button class="filter" data-f="study">学习</button>
+        </div>
+        <div class="card">
+          <ul class="tasks" id="all-list"></ul>
+        </div>
+        <div class="foot">筛选只是示例；正式版会加「今天 / 本周 / 逾期 / 项目 / 标签」。</div>
+      </section>
+
+      <!-- ============ 日历 ============ -->
+      <section class="page" id="page-calendar">
+        <div class="page-head">
+          <div><h1>日历</h1><p>这一周 · 10月27日 – 11月2日</p></div>
+          <div class="row"><button class="btn-ghost">← 上周</button><button class="btn-ghost">下周 →</button></div>
+        </div>
+        <div class="card">
+          <div class="week">
+            <div class="day"><div class="dow">MON</div><div class="dnum">27</div><div class="ev">周会 09:30</div><div class="ev v">论文 20:00</div></div>
+            <div class="day"><div class="dow">TUE</div><div class="dnum">28</div><div class="ev">写方案</div></div>
+            <div class="day"><div class="dow">WED</div><div class="dnum">29</div><div class="ev a">拍摄 14:00</div><div class="ev">客户电话</div></div>
+            <div class="day"><div class="dow">THU</div><div class="dnum">30</div><div class="ev v">课程直播 19:00</div></div>
+            <div class="day"><div class="dow">FRI</div><div class="dnum">31</div><div class="ev">周报截止</div><div class="ev a">选题会</div></div>
+            <div class="day"><div class="dow">SAT</div><div class="dnum">1</div><div class="ev v">读论文</div></div>
+            <div class="day today"><div class="dow">SUN</div><div class="dnum">2</div><div class="ev">周会 09:30</div><div class="ev a">拍摄 14:00</div><div class="ev v">复盘 21:30</div></div>
+          </div>
+        </div>
+        <div class="foot">正式版支持日视图、拖拽改时间、全天事件、.ics 导入（P1）。</div>
+      </section>
+
+      <!-- ============ 记录 ============ -->
+      <section class="page" id="page-notes">
+        <div class="page-head">
+          <div><h1>记录</h1><p>先扔进来，之后再整理。支持 Markdown、标签、置顶。</p></div>
+          <button class="primary" id="note-new">＋ 新记录</button>
+        </div>
+        <div class="notes-wrap">
+          <div class="card" style="padding:10px">
+            <div class="note-list" id="note-list"></div>
+          </div>
+          <div class="card">
+            <div class="tag-line" id="note-tags"><span class="tag cyan">灵感</span><span class="tag">今天 14:12</span></div>
+            <div class="note-body" id="note-body"></div>
+          </div>
+        </div>
+        <div class="foot">正式版记录支持全文搜索（FTS5）、置顶、归档、导出 Markdown。</div>
+      </section>
+
+      <!-- ============ 复盘 ============ -->
+      <section class="page" id="page-review">
+        <div class="page-head">
+          <div><h1>复盘</h1><p>每天 3 问，每周一次汇总。先写，再让 AI 帮忙顺。</p></div>
+          <span class="proto-pill">连续复盘 12 天</span>
+        </div>
+        <div class="grid">
+          <section class="card span-7">
+            <div class="card-h"><h2>今天 · 3 个问题</h2><span class="count">约 30 秒</span></div>
+            <div class="q"><label>1. 今天做成了什么？</label><textarea class="field" id="r1" rows="3" placeholder="哪怕只是把一封邮件发出去了"></textarea></div>
+            <div class="q"><label>2. 哪里卡住了？</label><textarea class="field" id="r2" rows="3" placeholder="卡住的地方，往往就是明天的入口"></textarea></div>
+            <div class="q"><label>3. 明天第一件事？</label><textarea class="field" id="r3" rows="2" placeholder="只写一件，明早打开就能做"></textarea></div>
+            <div class="row"><button class="btn-sm" id="review-save-2">保存今日复盘</button><button class="btn-ghost" id="review-ai-2">✦ AI 起稿</button><span class="muted" id="review-state"></span></div>
+          </section>
+          <section class="card span-5">
+            <div class="card-h"><h2>本周汇总</h2><span class="count">10/27–11/2</span></div>
+            <div class="kv">
+              <div><div class="k">完成任务</div><div class="v">18 / 24 <span class="muted">· 75%</span></div></div>
+              <div><div class="k">记录条数</div><div class="v">12 条</div></div>
+              <div><div class="k">复盘天数</div><div class="v">5 / 7 天</div></div>
+              <div><div class="k">最常出现的项目</div><div class="v">客户 A · 自媒体 · 论文</div></div>
+            </div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+              <div class="k" style="font-size:10px;color:var(--dim);margin-bottom:6px">AI 周报初稿</div>
+              <p class="muted" id="week-draft" style="line-height:1.8;margin:0">本周你把最多时间放在「客户 A 的 Q4 方案」和「短视频拍摄」上；论文进度落后于计划。下周建议先锁定周二、周四两个晚上的论文时间。</p>
+            </div>
+            <div class="row" style="margin-top:12px"><button class="btn-sm" id="week-ai">重新生成</button><button class="btn-ghost">导出 Markdown</button></div>
+          </section>
+        </div>
+        <div class="foot">正式版周复盘会自动汇总真实数据，AI 只写初稿，你改完才保存。</div>
+      </section>
+
+      <!-- ============ AI ============ -->
+      <section class="page" id="page-ai">
+        <div class="page-head">
+          <div><h1>AI</h1><p>只做三件事：整理、生成、查。所有写操作都要你确认。</p></div>
+          <span class="proto-pill">模型：DeepSeek</span>
+        </div>
+        <div class="grid">
+          <section class="card span-5">
+            <div class="card-h"><h2>连接配置</h2><span class="count">已连接</span></div>
+            <div class="form-grid">
+              <label>供应商<select><option>DeepSeek（OpenAI 兼容）</option><option>Ollama（本地）</option></select></label>
+              <label>Base URL<input value="https://api.deepseek.com"></label>
+              <label>模型<input value="deepseek-chat"></label>
+              <label>API Key<input type="password" value="sk-••••••••••••••••" placeholder="sk-..."></label>
+            </div>
+            <div class="row" style="margin-top:12px"><button class="btn-sm" id="ai-test">测试连接</button><span class="muted">Key 只存服务端，不进前端代码</span></div>
+          </section>
+          <section class="card span-7">
+            <div class="card-h"><h2>AI 整理 · 碎碎念 → 任务</h2><span class="count">需确认</span></div>
+            <textarea class="field" id="ai-input" rows="5">客户 A 那边预算有点紧，下次带两个方案；另外周四前要把短视频剪完，论文这周得把中介效应那节补上。还有，记得预约体检。</textarea>
+            <div class="row" style="margin-top:10px"><button class="btn-sm" id="ai-parse">✦ 拆成任务</button><span class="muted">不会自动保存，先给你看</span></div>
+            <div id="ai-result" style="margin-top:12px"></div>
+          </section>
+        </div>
+        <div class="foot">正式版：AI 只返回结构化建议；确认后写入 tasks / notes；每次调用记 tokens。</div>
+      </section>
+
+      <!-- ============ 设置 ============ -->
+      <section class="page" id="page-settings">
+        <div class="page-head"><div><h1>设置与数据</h1><p>本地优先：数据在你自己的电脑上。</p></div></div>
+        <div class="grid">
+          <section class="card span-7">
+            <div class="card-h"><h2>数据</h2></div>
+            <div class="setting-row">
+              <div><p>导出全部数据</p><small>JSON 文件，含任务、记录、复盘、设置</small></div>
+              <button class="btn-sm" id="export-btn">导出</button>
+            </div>
+            <div class="setting-row">
+              <div><p>导入数据</p><small>覆盖前会二次确认；示例原型里只做演示</small></div>
+              <label class="btn-sm" style="display:inline-block">选择文件<input type="file" id="import-file" hidden></label>
+            </div>
+            <div class="setting-row">
+              <div><p>自动备份</p><small>每天首次打开备份一次，保留 14 份</small></div>
+              <button class="switch on" id="sw-backup"></button>
+            </div>
+            <div class="setting-row">
+              <div><p>页面内提醒</p><small>到点弹浏览器通知；需要页面开着并授权</small></div>
+              <button class="switch on" id="sw-remind"></button>
+            </div>
+          </section>
+          <section class="card span-5">
+            <div class="card-h"><h2>关于</h2></div>
+            <div class="kv">
+              <div><div class="k">版本</div><div class="v">v0.1 原型 · 方向 A</div></div>
+              <div><div class="k">数据位置</div><div class="v mono">data/workbench.db（正式版）</div></div>
+              <div><div class="k">部署</div><div class="v">本地运行；以后自行部署到服务器</div></div>
+              <div><div class="k">知识库</div><div class="v">暂不内置，只留引用接口</div></div>
+            </div>
+            <p class="muted" style="margin-top:14px">这个原型不写任何真实数据；所有操作只存在当前页面内存里，刷新即清空。</p>
+          </section>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- 新任务 -->
+<div class="modal" id="m-add" hidden>
+  <div class="sheet" style="position:relative">
+    <button class="x" data-close>×</button>
+    <h3>新任务</h3>
+    <p class="hint">示例原型：只加在当前页面，刷新就没了。</p>
+    <form class="form-grid" id="add-form">
+      <label>标题<input id="f-title" required placeholder="例如：把方案第二版发给客户"></label>
+      <div class="form-2">
+        <label>时间<input id="f-time" type="time" value="15:00"></label>
+        <label>优先级<select id="f-pri"><option value="high">高</option><option value="mid" selected>中</option><option value="low">低</option></select></label>
+      </div>
+      <div class="form-2">
+        <label>分类<select id="f-cat"><option value="work">工作</option><option value="side">副业 / 自媒体</option><option value="study">学习</option></select></label>
+        <label>项目<input id="f-proj" placeholder="客户 A / 论文…"></label>
+      </div>
+      <div class="sheet-actions"><button type="button" class="btn-ghost" data-close>取消</button><button type="submit" class="primary">添加</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- 搜索 -->
+<div class="modal" id="m-search" hidden>
+  <div class="sheet search-sheet" style="position:relative">
+    <button class="x" data-close>×</button>
+    <input class="search-input" id="search-input" placeholder="搜任务、记录…（试试「客户」「论文」）" autocomplete="off">
+    <div class="sres" id="search-results"></div>
+    <p class="hint" style="margin-top:12px">正式版会同时搜任务、记录、复盘，并支持按类型/时间过滤。</p>
+  </div>
+</div>
+
+<!-- 提醒 -->
+<div class="popover" id="bell-pop" hidden>
+  <div class="ph"><span>提醒</span><span class="mono">3</span></div>
+  <div class="pop-item"><span class="pt">09:30</span><div>客户周会 · 客户 A</div></div>
+  <div class="pop-item"><span class="pt">14:00</span><div>拍摄：个人工作台短视频</div></div>
+  <div class="pop-item"><span class="pt">21:30</span><div>今日复盘 · 3 个问题</div></div>
+  <div class="pop-note">页面内提醒：页面开着才生效。关页后的推送要部署后加 Web Push（V2）。</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (s,el=document)=>el.querySelector(s);
+  const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
+  const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const CAT = {work:"工作",side:"副业",study:"学习"};
+  const PRI = {high:"高",mid:"中",low:"低"};
+
+  const tasks = [
+    {id:1,title:"客户周会：过一遍 Q4 方案",cat:"work",time:"09:30",pri:"high",proj:"客户 A",done:false},
+    {id:2,title:"把周报写完发出去",cat:"work",time:"11:00",pri:"mid",proj:"内部",done:false},
+    {id:3,title:"录一条「个人工作台」短视频",cat:"side",time:"14:00",pri:"high",proj:"自媒体",done:false},
+    {id:4,title:"读《研究设计》第 4 章并做笔记",cat:"study",time:"16:30",pri:"mid",proj:"研究生",done:false},
+    {id:5,title:"小红书选题 3 条",cat:"side",time:"",pri:"low",proj:"副业",done:false},
+    {id:6,title:"晨间计划",cat:"work",time:"08:30",pri:"low",proj:"例行",done:true},
+    {id:7,title:"回复客户邮件",cat:"work",time:"08:50",pri:"mid",proj:"客户 A",done:true}
+  ];
+  const notes = [
+    {id:1,title:"选题：把工作台做成「人生 OS」的入口",tag:"灵感",time:"今天 14:12",body:"不要做成又一个待办 App。\n\n入口应该是「今天」：一打开就知道现在该做什么，做完能记一笔，周末能回头看见自己走了多远。\n\n模块（习惯、记账、学习）以后再说，底座先把「任务 + 记录 + 复盘」跑顺。"},
+    {id:2,title:"客户 A 关心预算，下次带两个方案",tag:"工作",time:"今天 10:40",body:"会上他没有直接否，但反复问「能不能先小范围试」。\n\n下次带：\n1. 保守版：先做两周试点，按结果再扩。\n2. 完整版：一次性交付，报价可分期。"},
+    {id:3,title:"论文变量再确认：中介效应",tag:"学习",time:"昨天 22:05",body:"自变量：工作自主性；中介：心理所有权；因变量：创新行为。\n\n下周先把量表来源补齐，再跑一遍预调研。"}
+  ];
+  const state = {page:"today", todayFilter:"all", taskFilter:"all", note:1, capTag:"灵感", reviewDone:false};
+
+  /* date */
+  const d = new Date();
+  const dow = "日一二三四五六"[d.getDay()];
+  const dateLabel = `${d.getMonth()+1}月${d.getDate()}日 · 周${dow}`;
+  $("#today-label").textContent = dateLabel;
+  $("#today-date").textContent = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} / 周${dow}`;
+
+  /* nav */
+  const TITLES = {today:"今日",tasks:"任务",calendar:"日历",notes:"记录",review:"复盘",ai:"AI",settings:"设置与数据"};
+  function go(page){
+    state.page = page;
+    $$(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+page));
+    $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+    $$(".rail-bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+    $("#crumb-title").textContent = TITLES[page]||"今日";
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+  document.addEventListener("click",e=>{
+    const b = e.target.closest("[data-page]");
+    if(b){ go(b.dataset.page); if(b.id==="ai-teaser"){} }
+  });
+
+  /* toast */
+  let toastEl=null, toastTimer=null;
+  function toast(msg){
+    if(toastEl) toastEl.remove();
+    clearTimeout(toastTimer);
+    toastEl = document.createElement("div");
+    toastEl.className="toast"; toastEl.textContent=msg;
+    document.body.appendChild(toastEl);
+    toastTimer=setTimeout(()=>{toastEl&&toastEl.remove();toastEl=null;},2400);
+  }
+
+  /* tasks */
+  function taskHTML(t){
+    return `<li class="task ${t.done?"done":""}" data-id="${t.id}">
+      <button class="check" data-act="toggle" aria-label="切换完成">✓</button>
+      <div class="t-main">
+        <div class="t-title">${esc(t.title)}</div>
+        <div class="t-meta"><span class="pill ${t.pri}">${PRI[t.pri]}</span>${t.time?`<span class="mono">${t.time}</span><span class="dotsep">·</span>`:""}<span>${esc(t.proj)}</span></div>
+      </div>
+      <span class="t-cat ${t.cat}">${CAT[t.cat]}</span>
+    </li>`;
+  }
+  function renderTasks(){
+    const done = tasks.filter(t=>t.done).length;
+    const list = tasks.filter(t=>state.todayFilter==="all"||t.cat===state.todayFilter);
+    $("#today-list").innerHTML = list.length ? list.map(taskHTML).join("") : `<div class="empty"><div class="glyph">◌</div>这个分类今天没有任务</div>`;
+    const allFiltered = tasks.filter(t=>{
+      const f=state.taskFilter;
+      if(f==="all") return true;
+      if(f==="open") return !t.done;
+      if(f==="done") return t.done;
+      return t.cat===f;
+    });
+    $("#all-list").innerHTML = allFiltered.length ? allFiltered.map(taskHTML).join("") : `<div class="empty"><div class="glyph">◌</div>没有符合条件的任务<br><span style="font-size:10px">换个筛选看看</span></div>`;
+    $("#stat-done").innerHTML = `${done}<span>/${tasks.length}</span>`;
+    $("#stat-bar").style.width = (tasks.length?done/tasks.length*100:0)+"%";
+    $("#hero-sub").textContent = `其余都是加分项。今天还有 ${tasks.length-done} 件待办。`;
+  }
+  function toggleTask(id){
+    const t = tasks.find(x=>x.id===id);
+    if(!t) return;
+    t.done = !t.done;
+    renderTasks();
+    toast(t.done ? "完成 · 已记下时间" : "已撤销完成");
+  }
+  document.addEventListener("click",e=>{
+    const btn = e.target.closest('[data-act="toggle"]');
+    if(btn){ toggleTask(Number(btn.closest(".task").dataset.id)); }
+  });
+
+  /* filters */
+  $("#today-seg").addEventListener("click",e=>{
+    const b=e.target.closest("button[data-f]"); if(!b) return;
+    state.todayFilter=b.dataset.f;
+    $$("#today-seg button").forEach(x=>x.classList.toggle("on",x===b));
+    renderTasks();
+  });
+  $("#task-filters").addEventListener("click",e=>{
+    const b=e.target.closest("button[data-f]"); if(!b) return;
+    state.taskFilter=b.dataset.f;
+    $$("#task-filters button").forEach(x=>x.classList.toggle("on",x===b));
+    renderTasks();
+  });
+
+  /* add modal */
+  const mAdd = $("#m-add");
+  function openAdd(){ mAdd.hidden=false; setTimeout(()=>$("#f-title").focus(),50); }
+  function closeAdd(){ mAdd.hidden=true; }
+  $("#add-open").onclick=openAdd;
+  $("#add-open-2").onclick=openAdd;
+  $("#add-open-3").onclick=openAdd;
+  $$("[data-close]",mAdd).forEach(b=>b.onclick=closeAdd);
+  mAdd.addEventListener("click",e=>{if(e.target===mAdd) closeAdd();});
+  $("#add-form").addEventListener("submit",e=>{
+    e.preventDefault();
+    const title=$("#f-title").value.trim(); if(!title) return;
+    tasks.unshift({id:Date.now(),title,cat:$("#f-cat").value,time:$("#f-time").value,pri:$("#f-pri").value,proj:$("#f-proj").value.trim()||"未分类",done:false});
+    renderTasks(); closeAdd(); e.target.reset(); $("#f-time").value="15:00";
+    toast("已添加任务");
+  });
+
+  /* capture */
+  document.addEventListener("click",e=>{
+    const c=e.target.closest("#capture-tags .chip");
+    if(c){ state.capTag=c.dataset.tag; $$("#capture-tags .chip").forEach(x=>x.classList.toggle("on",x===c)); }
+  });
+  function saveCapture(){
+    const ta=$("#capture-text");
+    const text=ta.value.trim(); if(!text){ toast("先写点什么"); return; }
+    notes.unshift({id:Date.now(),title:text.split("\n")[0].slice(0,24),tag:state.capTag,time:"刚刚",body:text});
+    ta.value=""; renderNotes(); toast("已存入记录 · 之后可整理");
+  }
+  $("#capture-save").onclick=saveCapture;
+  document.addEventListener("keydown",e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){ if(document.activeElement===$("#capture-text")){e.preventDefault();saveCapture();} }
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); openSearch(); }
+    if(e.key==="Escape"){ closeAdd(); $("#m-search").hidden=true; $("#bell-pop").hidden=true; }
+  });
+
+  /* notes */
+  function renderNotes(){
+    if(!notes.length){
+      $("#note-list").innerHTML = `<div class="empty"><div class="glyph">◌</div>还没有记录<br><span style="font-size:10px">用「快速记录」扔一句进来</span></div>`;
+      $("#note-body").innerHTML = ""; $("#note-tags").innerHTML = "";
+      return;
+    }
+    $("#note-list").innerHTML = notes.map(n=>`<button class="note-item ${n.id===state.note?"on":""}" data-note="${n.id}">
+      <div class="nt">${esc(n.title)}</div>
+      <div class="nm"><span>${esc(n.tag)}</span><span>·</span><span>${esc(n.time)}</span></div>
+    </button>`).join("");
+    const n = notes.find(x=>x.id===state.note)||notes[0];
+    state.note = n.id;
+    $("#note-tags").innerHTML = `<span class="tag cyan">${esc(n.tag)}</span><span class="tag">${esc(n.time)}</span>`;
+    $("#note-body").textContent = n.body;
+  }
+  document.addEventListener("click",e=>{
+    const b=e.target.closest("[data-note]"); if(!b) return;
+    state.note=Number(b.dataset.note); renderNotes();
+  });
+  $("#note-new").onclick=()=>{ state.note=0; notes.unshift({id:Date.now(),title:"未命名记录",tag:"灵感",time:"刚刚",body:""}); state.note=notes[0].id; renderNotes(); toast("新记录已建（示例）"); };
+
+  /* review */
+  function saveReview(){
+    const vals=[$("#q1").value,$("#q2").value,$("#q3").value].filter(Boolean).length;
+    if(!vals){ toast("至少写一句"); return; }
+    state.reviewDone=true;
+    toast("复盘已保存 · 连续 13 天");
+  }
+  $("#review-save").onclick=saveReview;
+  $("#review-save-2").onclick=()=>{ saveReview(); $("#review-state").textContent="已保存"; };
+  function aiDraft(){
+    $("#q1").value="把客户 A 的预算顾虑记下来了，也确认了短视频的拍摄时间。";
+    $("#q2").value="周报拖到下午才写，因为上午会议超时。";
+    $("#q3").value="上午 9 点先写周报，再开电脑看消息。";
+    $("#r1").value=$("#q1").value; $("#r2").value=$("#q2").value; $("#r3").value=$("#q3").value;
+    toast("AI 已起稿 · 改完再保存");
+  }
+  $("#review-ai").onclick=aiDraft;
+  $("#review-ai-2").onclick=aiDraft;
+  $("#week-ai").onclick=()=>{
+    $("#week-draft").textContent="本周你把最多时间放在「客户 A 的 Q4 方案」和「短视频拍摄」上；论文进度落后于计划。下周建议先锁定周二、周四两个晚上的论文时间，并把周报拆成「上午写、下午发」两步。";
+    toast("AI 已重新生成周报初稿");
+  };
+
+  /* ai page */
+  $("#ai-test").onclick=()=>toast("连接成功（示例）· deepseek-chat");
+  $("#ai-parse").onclick=()=>{
+    const raw=$("#ai-input").value.trim();
+    if(!raw){ toast("先写点素材"); return; }
+    const candidates=[
+      {t:"给客户 A 准备两个方案：试点版 / 完整版",cat:"work",pri:"high"},
+      {t:"周四前剪完「个人工作台」短视频",cat:"side",pri:"high"},
+      {t:"补论文「中介效应」一节",cat:"study",pri:"mid"},
+      {t:"预约体检",cat:"work",pri:"low"}
+    ];
+    $("#ai-result").innerHTML = `<div style="border-top:1px solid var(--line);padding-top:10px">
+      <div class="muted" style="margin-bottom:8px">AI 建议（${candidates.length} 条）· 勾选后才会入库</div>
+      ${candidates.map((c,i)=>`<label class="task" style="cursor:pointer"><input type="checkbox" checked data-cand="${i}" style="margin-top:3px;accent-color:#22D3EE"><div class="t-main"><div class="t-title">${c.t}</div><div class="t-meta"><span class="pill ${c.pri}">${PRI[c.pri]}</span><span>${CAT[c.cat]}</span></div></div></label>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="primary" id="ai-confirm">确认加入任务</button><button class="btn-ghost" id="ai-cancel">先不用</button></div>
+    </div>`;
+    $("#ai-confirm").onclick=()=>{
+      const checked=$$("#ai-result input[data-cand]:checked").map(x=>Number(x.dataset.cand));
+      checked.forEach(i=>{
+        const c=candidates[i];
+        tasks.unshift({id:Date.now()+i,title:c.t,cat:c.cat,time:"",pri:c.pri,proj:"AI 整理",done:false});
+      });
+      renderTasks(); $("#ai-result").innerHTML=`<div class="muted" style="border-top:1px solid var(--line);padding-top:10px">已加入 ${checked.length} 条任务。可以回「任务」里调整时间。</div>`;
+      toast(`已加入 ${checked.length} 条任务`);
+    };
+    $("#ai-cancel").onclick=()=>{ $("#ai-result").innerHTML=""; };
+  };
+
+  /* search */
+  const mSearch=$("#m-search");
+  function openSearch(){ mSearch.hidden=false; setTimeout(()=>$("#search-input").focus(),40); }
+  $("#search-open").onclick=openSearch;
+  mSearch.addEventListener("click",e=>{if(e.target===mSearch) mSearch.hidden=true;});
+  $$("[data-close]",mSearch).forEach(b=>b.onclick=()=>mSearch.hidden=true);
+  $("#search-input").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    if(!q){ $("#search-results").innerHTML=`<div class="empty"><div class="glyph">⌕</div>输入关键词开始搜索</div>`; return; }
+    const hits=[];
+    tasks.forEach(t=>{ if(t.title.toLowerCase().includes(q)) hits.push({type:"任务",text:t.title,sub:t.done?"已完成":"待办"}); });
+    notes.forEach(n=>{ if((n.title+n.body).toLowerCase().includes(q)) hits.push({type:"记录",text:n.title,sub:n.tag}); });
+    $("#search-results").innerHTML = hits.length ? hits.map(h=>`<button><span class="type">${h.type}</span><span>${esc(h.text)}</span><span class="sub">${esc(h.sub)}</span></button>`).join("") : `<div class="empty"><div class="glyph">◌</div>没有找到「${esc(e.target.value)}」<br><span style="font-size:10px">试试「客户」「论文」「工作台」</span></div>`;
+  });
+  $$("#search-results button").forEach(b=>b.onclick=()=>{mSearch.hidden=true;});
+
+  /* bell */
+  const bell=$("#bell-pop");
+  $("#bell-open").onclick=e=>{e.stopPropagation();bell.hidden=!bell.hidden;};
+  document.addEventListener("click",e=>{ if(!bell.hidden && !bell.contains(e.target) && !e.target.closest("#bell-open")) bell.hidden=true; });
+
+  /* switches */
+  $$(".switch").forEach(s=>s.onclick=()=>{s.classList.toggle("on");toast(s.classList.contains("on")?"已开启":"已关闭");});
+
+  /* export / import */
+  $("#export-btn").onclick=()=>{
+    const blob=new Blob([JSON.stringify({tasks,notes,exported_at:new Date().toISOString()},null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download="workbench-sample-export.json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    toast("已导出 JSON（示例）");
+  };
+  $("#import-file").onchange=e=>{ if(e.target.files.length) toast("已选择文件 · 正式版会预览并二次确认"); };
+
+  renderTasks(); renderNotes();
+})();
+</script>
+</body>
+</html>

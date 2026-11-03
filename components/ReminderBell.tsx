@@ -1,0 +1,85 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Bell } from "lucide-react";
+import { format, parseISO } from "date-fns";
+
+type Item = { kind: "task" | "event"; id: number; title: string; at: string; priority: string; overdue?: boolean };
+
+export default function ReminderBell() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [open, setOpen] = useState(false);
+  const [permission, setPermission] = useState<string>("default");
+  const seen = useRef<Set<string>>(new Set());
+
+  const load = async () => {
+    try {
+      const res = await fetch("/api/reminders", { cache: "no-store" });
+      const data = await res.json();
+      const list: Item[] = data.items || [];
+      setItems(list);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        for (const it of list) {
+          const key = `${it.kind}-${it.id}`;
+          if (seen.current.has(key)) continue;
+          seen.current.add(key);
+          new Notification(it.kind === "event" ? "日程快到了" : "任务提醒", { body: `${it.title}${it.at ? " · " + (it.at.includes("T") ? format(parseISO(it.at), "HH:mm") : "今天") : ""}` });
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined") setPermission(Notification.permission);
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const ask = async () => {
+    if (typeof Notification === "undefined") return;
+    const p = await Notification.requestPermission();
+    setPermission(p);
+    if (p === "granted") {
+      seen.current.clear();
+      load();
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button className="ghost" onClick={() => setOpen((v) => !v)} aria-label="提醒" style={{ position: "relative" }}>
+        <Bell size={13} />
+        {items.length > 0 && (
+          <span style={{ position: "absolute", top: -3, right: -3, minWidth: 13, height: 13, borderRadius: 99, background: "linear-gradient(140deg,#4FD3C8,#33A9D6)", color: "#fff", fontSize: 7.5, display: "grid", placeItems: "center", padding: "0 3px" }}>
+            {items.length}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="bell-pop">
+          <div className="bell-head">
+            <b>接下来</b>
+            <span>{items.length} 件</span>
+          </div>
+          {items.length === 0 && <p className="hint2" style={{ padding: "8px 2px" }}>未来 4 小时没有要提醒的事。</p>}
+          {items.map((it) => (
+            <div className="bell-item" key={`${it.kind}-${it.id}`}>
+              <span className={`bell-dot ${it.kind}`} />
+              <div style={{ minWidth: 0 }}>
+                <b>{it.title}</b>
+                <small>{it.kind === "event" ? "日程" : "任务"}{it.at ? ` · ${it.at.includes("T") ? format(parseISO(it.at), "HH:mm") : "今天"}` : ""}{it.overdue ? " · 已到期" : ""}</small>
+              </div>
+            </div>
+          ))}
+          {permission !== "granted" && (
+            <button className="b-small" style={{ width: "100%", marginTop: 8 }} onClick={ask}>开启浏览器通知</button>
+          )}
+          {permission === "granted" && <p className="hint2" style={{ marginTop: 8 }}>页面开着时，到点会弹系统通知。</p>}
+        </div>
+      )}
+    </div>
+  );
+}

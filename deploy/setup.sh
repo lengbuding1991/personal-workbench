@@ -217,16 +217,24 @@ elif command -v certbot >/dev/null 2>&1; then
   if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
        --register-unsafely-without-email --redirect >/tmp/certbot.log 2>&1; then
     ok "HTTPS 已开启：https://${DOMAIN}"
-    # 上了 https，cookie 才能（也应该）带 Secure
-    sed -i 's|^Environment=WB_SECURE_COOKIE=1|Environment=WB_SECURE_COOKIE=1|' /etc/systemd/system/workbench.service
+    # 上了 https 才允许 cookie 带 Secure。反过来，如果证书没申请下来，
+    # 强行开 Secure 会让浏览器在 http 下直接丢掉 cookie —— 登录看似成功却一直跳回登录页。
+    sed -i 's|^Environment=WB_SECURE_COOKIE=.*|Environment=WB_SECURE_COOKIE=1|' /etc/systemd/system/workbench.service || true
     systemctl daemon-reload
     systemctl restart workbench
   else
     warn "证书没申请下来，看 /tmp/certbot.log"
     warn "常见原因：安全组没放行 80、域名还没解析好"
+    # 没有 https 就别强制 Secure cookie，否则登录会一直失败
+    sed -i 's|^Environment=WB_SECURE_COOKIE=.*|Environment=WB_SECURE_COOKIE=0|' /etc/systemd/system/workbench.service || true
+    systemctl daemon-reload
+    systemctl restart workbench
   fi
 else
   warn "没装 certbot，手动申请：certbot --nginx -d ${DOMAIN}"
+  sed -i 's|^Environment=WB_SECURE_COOKIE=.*|Environment=WB_SECURE_COOKIE=0|' /etc/systemd/system/workbench.service || true
+  systemctl daemon-reload
+  systemctl restart workbench
 fi
 
 echo

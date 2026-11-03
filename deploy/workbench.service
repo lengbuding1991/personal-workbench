@@ -14,8 +14,10 @@ Environment=WORKBENCH_SHA=__SHA__
 Environment=WORKBENCH_DATA_DIR=__APP_DIR__/data
 # 首启不要灌那 7 条示例任务，线上从空开始
 Environment=WORKBENCH_SEED=0
-# 线上是 https，cookie 必须带 Secure；http 调试时把它删掉
-Environment=WB_SECURE_COOKIE=1
+# cookie 的 Secure 优先看 nginx 传来的 x-forwarded-proto；
+# setup.sh 会在「证书申请成功」后把这里改成 1，「没上 https」时改成 0，
+# 避免 http 下浏览器把 cookie 丢掉导致登不进去。
+Environment=WB_SECURE_COOKIE=0
 ExecStart=__NODE_BIN__ __APP_DIR__/node_modules/next/dist/bin/next start -p __PORT__ -H 127.0.0.1
 Restart=always
 RestartSec=3

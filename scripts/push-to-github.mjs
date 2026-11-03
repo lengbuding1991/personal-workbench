@@ -169,7 +169,10 @@ for (const commit of todo) {
 
   let changed = files;
   if (parentLocal) {
-    const changedRaw = execFileSync("git", ["diff", "--name-only", "-z", parentLocal, commit], {
+    // --diff-filter=AM：只要「新增」和「修改」。
+    // 被删掉的文件不能进这份清单——git cat-file 取不到它的内容会直接抛错；
+    // 而且服务器那边是 tar 覆盖更新，本来也不会删文件，两边行为保持一致。
+    const changedRaw = execFileSync("git", ["diff", "--name-only", "--diff-filter=AM", "-z", parentLocal, commit], {
       cwd: root,
       maxBuffer: 64 * 1024 * 1024,
     })

@@ -96,3 +96,16 @@ docs/screens/           README 用的截图（webp，压缩过）
 - 类型检查：`pnpm exec tsc --noEmit`；构建：`pnpm build`。
 - 任务的本地状态与撤销逻辑集中在 `lib/use-tasks.ts`；提示由 `components/Toast.tsx` 提供，弹窗由 `components/Confirm.tsx` 提供，拖拽由 `lib/use-pointer-drag.ts` + `components/DragGhost.tsx` 提供。
 - **做拖拽/删除类自动化测试时，务必用 `WORKBENCH_DATA_DIR=/tmp/xxx` 指向临时库并另起端口跑**，不要对真实 `data/workbench.db` 操作。
+
+## 推送到 GitHub
+
+这台机器到 `github.com:443` 的 TLS 握手会被中断，`git push` 会挂死到超时；但 `api.github.com` 是通的。
+所以推送走 Git Data API：
+
+```bash
+npm run push            # 或 node scripts/push-to-github.mjs
+node scripts/push-to-github.mjs --dry   # 只看要推哪些提交
+```
+
+Token 依次从 `$GH_TOKEN`、`~/.dsh/workbench-token`、`~/.dsh/deng-stock-token` 找（文件里只放 token，`chmod 600`）。
+远端 sha 与本地 sha 不同，对应关系记在 `.git/github-pushed.json`，支持增量推送。

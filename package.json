@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "push": "node scripts/push-to-github.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

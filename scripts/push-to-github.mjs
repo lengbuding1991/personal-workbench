@@ -157,14 +157,15 @@ if (remoteHead) {
   const c = await gh(`/repos/${REPO}/git/commits/${remoteHead}`);
   parentTree = c.tree.sha;
 }
+/* 远端 sha 跟本地不等，diff 要用本地那个对应提交 */
+let parentLocal = startIdx > 0 ? allCommits[startIdx - 1] : null;
 
 for (const commit of todo) {
-  const prev = parentSha;
   const files = git(`git ls-tree -r -z --name-only ${commit}`).split("\0").filter(Boolean);
 
   let changed = files;
-  if (prev) {
-    const changedRaw = execSync(`git diff --name-only -z ${prev} ${commit}`, {
+  if (parentLocal) {
+    const changedRaw = execSync(`git diff --name-only -z ${parentLocal} ${commit}`, {
       cwd: root,
       maxBuffer: 64 * 1024 * 1024,
     })
@@ -207,6 +208,7 @@ for (const commit of todo) {
 
   parentSha = created.sha;
   parentTree = tree.sha;
+  parentLocal = commit;
   syncMap[created.sha] = commit;
   writeMap(syncMap);
   console.log(`  → ${created.sha.slice(0, 7)}`);

@@ -7,4 +7,11 @@ Wants=network-online.target
 Type=oneshot
 # 用 /bin/bash 显式调用：不依赖文件的「可执行位」。
 # 直接写脚本路径时 systemd 会报 status=203/EXEC，而失败是静默的。
+# 构建是这台机器上最吃内存的活，出事先杀它；同时降 CPU/IO 优先级，
+# 别让 nginx 和正在跑的应用跟着卡。
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+OOMScoreAdjust=500
+TimeoutStartSec=900
 ExecStart=/bin/bash /opt/workbench/deploy/auto-update.sh

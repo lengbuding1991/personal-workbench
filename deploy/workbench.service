@@ -21,6 +21,9 @@ Environment=WB_SECURE_COOKIE=0
 ExecStart=__NODE_BIN__ __APP_DIR__/node_modules/next/dist/bin/next start -p __PORT__ -H 127.0.0.1
 Restart=always
 RestartSec=3
+# 内存吃紧时优先杀应用，别去动 sshd / nginx —— 否则一 OOM 就连不上机器。
+OOMScoreAdjust=200
+Nice=5
 StandardOutput=journal
 StandardError=journal
 

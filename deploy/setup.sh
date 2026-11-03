@@ -157,7 +157,7 @@ chown "$APP_USER:$APP_USER" "$APP_DIR/.deployed-sha"
 # 因为那一步会在 webpack 还在占内存时再拉一个 tsc，2G 机器上必被 OOM 杀。
 # 拆开跑峰值内存只取较大者，而校验强度没变 —— 这里失败就不往下走。
 echo "  类型检查"
-if su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' pnpm typecheck"; then
+if su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' nice -n 10 pnpm typecheck"; then
   ok "类型检查通过"
 else
   warn "类型检查没通过，先不构建。修完再跑 sudo bash ${APP_DIR}/deploy/setup.sh ${DOMAIN}"
@@ -166,7 +166,7 @@ fi
 
 echo "  构建（第一次大概 30~60 秒）"
 # 构建阶段已经没有 tsc 并行，堆上限给 1024 就够，再多反而更容易触发 OOM
-su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' WORKBENCH_SHA='$SHA_NOW' pnpm build"
+su - "$APP_USER" -c "cd '$APP_DIR' && NODE_OPTIONS='--max-old-space-size=1024' WORKBENCH_SHA='$SHA_NOW' nice -n 10 pnpm build"
 ok "构建完成"
 
 # ---------- 5. 数据目录 ----------

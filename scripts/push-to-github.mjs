@@ -16,7 +16,7 @@
  * 文件内容只放 token 本身，chmod 600。
  */
 
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -148,7 +148,11 @@ if (DRY) {
 
 /** 取某个提交里某文件的原始字节 */
 function fileAt(commit, rel) {
-  return execSync(`git cat-file blob ${commit}:${rel}`, { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+  // 用参数数组而不是拼字符串：路径里可能有 () 等 shell 元字符（如 app/(app)/page.tsx）
+  return execFileSync("git", ["cat-file", "blob", `${commit}:${rel}`], {
+    cwd: root,
+    maxBuffer: 64 * 1024 * 1024,
+  });
 }
 
 let parentSha = remoteHead;
@@ -165,7 +169,7 @@ for (const commit of todo) {
 
   let changed = files;
   if (parentLocal) {
-    const changedRaw = execSync(`git diff --name-only -z ${parentLocal} ${commit}`, {
+    const changedRaw = execFileSync("git", ["diff", "--name-only", "-z", parentLocal, commit], {
       cwd: root,
       maxBuffer: 64 * 1024 * 1024,
     })

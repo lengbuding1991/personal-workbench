@@ -30,8 +30,10 @@ services:
       TZ: Asia/Shanghai
       # 首启不要灌示例数据，从空库开始
       WORKBENCH_SEED: "0"
-      # 走 CF Tunnel 时外面是 https，必须开 1，否则登录 cookie 会被浏览器丢掉
-      WB_SECURE_COOKIE: "1"
+      # 保持 0：程序会自己看 cloudflared 传来的 X-Forwarded-Proto 决定要不要 Secure。
+      # 强制写 1 的话，你在家里用 http://NAS的IP:3100 就登不进去了
+      #（浏览器会丢掉 http 下的 Secure cookie，登录看似成功却一直跳回登录页）。
+      WB_SECURE_COOKIE: "0"
 
     # NAS 8G 还要跑别的服务，给个上限防止失控
     mem_limit: 1500m

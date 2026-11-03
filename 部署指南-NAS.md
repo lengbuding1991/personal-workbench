@@ -16,9 +16,11 @@
 镜像已经构建好并打包在本地：
 
 ```
-~/Downloads/workbench-arm64-image.tar      （76MB，未压缩，给 GUI 导入用）
-~/Downloads/workbench-arm64-image.tar.gz   （76MB，压缩版，上传更快时用）
+~/Downloads/workbench-nas-classic.tar      （223MB，给 GUI 导入用）
+~/Downloads/workbench-nas-classic.tar.gz   （74MB，上传慢就用这个）
 ```
+
+> 之前那份 `workbench-arm64-image.tar` 导不进去，是因为它是 OCI/containerd 布局（`blobs/sha256/…`），UGOS 的导入器只认 `docker save` 产出的老格式（一堆 `<层ID>/layer.tar` + `manifest.json` + `repositories`）。现在这两份已经是老格式，直接导入就行。
 
 镜像信息（已核实）：`architecture: arm64`、`os: linux`、`Entrypoint: /sbin/tini -- /usr/local/bin/docker-entrypoint.sh`、`Cmd: node server.js`、`User: root`（入口脚本会自己降权到 uid 1001）、`ExposedPorts: 3100/tcp`、`VOLUME /data`。
 
@@ -28,11 +30,11 @@
 
 1. 绿联云客户端 → 桌面打开 **Docker** 应用
 2. 左侧 **镜像** → 上方 **本地镜像** → 右侧 **添加 / 导入**
-3. 选择 `workbench-arm64-image.tar` 上传
+3. 选择 `workbench-nas-classic.tar` 上传
 
-上传完等它解包，列表里会出现一个 **`workbench:latest`**，大小约 250MB（压缩包 76MB，解压后是这么多，正常）。
+上传完等它解包，列表里会出现一个 **`workbench:latest`**，大小约 250MB（压缩包 223MB，解压后是这么多，正常）。
 
-> 传大文件慢的话，用 `.tar.gz` 那份，UGOS 的导入器两种都吃。
+> 传大文件慢的话，用 `.tar.gz` 那份（74MB），UGOS 的导入器两种都吃。
 > 如果客户端里根本找不到「导入」按钮，就去 **镜像仓库列表 → 新建加速器** 先配个源，再回来找；实在没有，看文末「备选方案」。
 
 ---

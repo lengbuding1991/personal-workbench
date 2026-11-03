@@ -14,3 +14,6 @@ data/backups
 # 部署时服务器上的运行时状态
 .deployed-sha
 .update-status.json
+
+# Docker 部署：数据库与备份不进仓库（NAS 上由 compose 挂卷）
+/data/

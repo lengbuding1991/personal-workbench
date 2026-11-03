@@ -1,0 +1,17 @@
+# 构建上下文里别塞这些没用的东西，否则镜像层会变得又大又慢
+node_modules
+.next
+.git
+.github
+screens
+prototypes
+docs
+data
+deploy
+.personal-workbench
+*.md
+!README.md
+.DS_Store
+*.log
+tsconfig.tsbuildinfo
+scripts

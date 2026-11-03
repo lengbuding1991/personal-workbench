@@ -1,0 +1,59 @@
+# 个人工作台 —— Docker Compose
+#
+# 用法（在 NAS 上，这个文件所在目录里）：
+#   docker compose build      # 第一次要装依赖 + 构建，ARM 上约 3~5 分钟
+#   docker compose up -d      # 起来
+#   docker compose logs -f    # 看日志
+#   docker compose down       # 停掉（数据在 ./data 里，不会丢）
+#
+# 数据卷 ./data 就是你的数据库，备份也在 ./data/backups。
+# 想迁移或备份，直接拷这个目录。
+
+services:
+  workbench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: workbench:local
+    container_name: workbench
+    restart: unless-stopped
+
+    # 只监听 NAS 本机回环，外网一律走反向代理 / Cloudflare Tunnel。
+    # 想让局域网内其他设备直接访问，把下面改成 "3100:3100" 即可
+    # （前提是 NAS 的防火墙不放行到公网）。
+    ports:
+      - "127.0.0.1:3100:3100"
+
+    volumes:
+      # 数据库 + 每日备份，全在这一个目录里
+      - ./data:/data
+      # 想固定时区，把下面这行解开（个人工作台用本地时间显示「今天」，很重要）
+      - /etc/localtime:/etc/localtime:ro
+
+    environment:
+      TZ: Asia/Shanghai
+      # 首启不要灌示例数据，从空库开始
+      WORKBENCH_SEED: "0"
+      # 部署在反向代理后面、且代理的是 https 时改成 "1"；
+      # 纯内网 http 访问保持 "0"，否则浏览器会丢掉登录 cookie。
+      WB_SECURE_COOKIE: "0"
+
+    # 构建期与运行期的内存都很宝贵（NAS 8G 还要跑别的），给个上限防止失控
+    mem_limit: 1500m
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

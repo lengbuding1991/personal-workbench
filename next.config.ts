@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  // 给 Docker 用：产出一个自包含的 .next/standalone（连最小 node_modules 一起打包），
+  // 镜像里就不必带整份依赖，也不需要源码。本地 `pnpm start` 不受影响。
+  output: "standalone",
   serverExternalPackages: [],
   // 小内存机器（2G）上 next build 会在「Linting and checking validity of types」
   // 阶段再拉一个 tsc 进程，和 webpack 抢内存，直接被 OOM killer 杀掉（exit 137）。

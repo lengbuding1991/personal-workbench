@@ -26,6 +26,11 @@ const items = [
   { href: "/search", label: "全局搜索", icon: Search },
 ];
 
+/** 点导航时点亮顶部进度线（见 components/NavProgress.tsx） */
+function ping() {
+  window.dispatchEvent(new Event("wb:nav-start"));
+}
+
 export default function Sidebar({ userName }: { userName: string }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -51,7 +56,12 @@ export default function Sidebar({ userName }: { userName: string }) {
         {items.map((it) => {
           const Icon = it.icon;
           return (
-            <Link key={it.href} href={it.href} className={isActive(it.href) ? "active" : ""}>
+            <Link
+              key={it.href}
+              href={it.href}
+              className={isActive(it.href) ? "active" : ""}
+              onClick={ping}
+            >
               <Icon />
               <span>{it.label}</span>
             </Link>
@@ -61,7 +71,7 @@ export default function Sidebar({ userName }: { userName: string }) {
 
       <div className="nav-foot">
         <nav className="nav">
-          <Link href="/settings" className={isActive("/settings") ? "active" : ""}>
+          <Link href="/settings" className={isActive("/settings") ? "active" : ""} onClick={ping}>
             <Settings />
             <span>设置</span>
           </Link>

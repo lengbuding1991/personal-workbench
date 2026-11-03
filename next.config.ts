@@ -14,7 +14,16 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   // 只在需要时并行；小机器上少开一个 worker 就少一份内存
-  experimental: { cpus: 2, workerThreads: false },
+  experimental: {
+    cpus: 2,
+    workerThreads: false,
+    // 客户端路由缓存：默认 force-dynamic 页面在浏览器里缓存 0 秒，
+    // 于是在 首页→任务→首页 这种来回切的时候，每次都要重新绕 CF 回源一次
+    // （单次 ttfb 约 1 秒）。给 30 秒后，30 秒内来回切是本地瞬间切换。
+    // 数据可能滞后最多 30 秒，但每次写操作后都调了 router.refresh()，
+    // 写完立刻拿到新数据，不会有「刚改完看不到」的问题。
+    staleTimes: { dynamic: 30, static: 180 },
+  },
   webpack: (config) => {
     config.externals = [...(config.externals || []), "node:sqlite"];
     return config;

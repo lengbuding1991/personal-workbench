@@ -3,6 +3,7 @@
 import Sidebar from "@/components/Sidebar";
 import CommandPalette from "@/components/CommandPalette";
 import QuickCapture from "@/components/QuickCapture";
+import NavProgress from "@/components/NavProgress";
 import Blobs from "@/components/Blobs";
 import { ConfirmProvider } from "@/components/Confirm";
 import { ToastProvider } from "@/components/Toast";
@@ -22,6 +23,7 @@ export default function AppShell({
     <ToastProvider>
       <ConfirmProvider>
         <Blobs />
+        <NavProgress />
         <Sidebar userName={userName} />
         <main>{children}</main>
         <CommandPalette />

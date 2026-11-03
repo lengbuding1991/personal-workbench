@@ -113,6 +113,16 @@ docs/screens/           README 用的截图（webp，压缩过）
 - 任务的本地状态与撤销逻辑集中在 `lib/use-tasks.ts`；提示由 `components/Toast.tsx` 提供，弹窗由 `components/Confirm.tsx` 提供，拖拽由 `lib/use-pointer-drag.ts` + `components/DragGhost.tsx` 提供。
 - **做拖拽/删除类自动化测试时，务必用 `WORKBENCH_DATA_DIR=/tmp/xxx` 指向临时库并另起端口跑**，不要对真实 `data/workbench.db` 操作。
 
+## 部署
+
+完整步骤见 [部署指南.md](部署指南.md)。一句话版本：
+
+1. 域名加一条 A 记录指向服务器；
+2. 服务器上跑一次 `deploy/bootstrap.sh`（装 Node、nginx、证书，注册 systemd）；
+3. 以后本机 `pnpm push`，服务器每 5 分钟自动拉新版本、构建、重启，失败自动回滚。
+
+应用跑在 `127.0.0.1:3200`，由 nginx 反代到 80/443。数据在 `/opt/workbench/data/`，永不被代码覆盖。
+
 ## 推送到 GitHub
 
 这台机器到 `github.com:443` 的 TLS 握手会被中断，`git push` 会挂死到超时；但 `api.github.com` 是通的。

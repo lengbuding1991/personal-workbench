@@ -11,6 +11,10 @@
  *   node scripts/push-to-github.mjs                 # 推 main，默认仓库见下
  *   node scripts/push-to-github.mjs --dry           # 只打印要推什么
  *
+ * 注意：Git Data API 的 base_tree 只叠加不删除，本地删掉/挪走的文件必须显式用
+ * sha:null 删掉，否则远端会一直留着（曾经因此让 app/ 下出现新旧两份同名路由，
+ * 服务器构建直接失败）。脚本每次会对比远端完整文件树，自动补删除条目。
+ *
  * token 来源（按顺序）：
  *   $GH_TOKEN  →  ~/.dsh/workbench-token  →  ~/.dsh/deng-stock-token
  * 文件内容只放 token 本身，chmod 600。
@@ -157,15 +161,19 @@ function fileAt(commit, rel) {
 
 let parentSha = remoteHead;
 let parentTree = null;
+let remoteFiles = null; // 远端当前分支上的全部文件，用来算出「本地删掉了哪些」
 if (remoteHead) {
   const c = await gh(`/repos/${REPO}/git/commits/${remoteHead}`);
   parentTree = c.tree.sha;
+  const t = await gh(`/repos/${REPO}/git/trees/${parentTree}?recursive=1`);
+  remoteFiles = (t.tree ?? []).filter((n) => n.type === "blob").map((n) => n.path);
 }
 /* 远端 sha 跟本地不等，diff 要用本地那个对应提交 */
 let parentLocal = startIdx > 0 ? allCommits[startIdx - 1] : null;
 
 for (const commit of todo) {
   const files = git(`git ls-tree -r -z --name-only ${commit}`).split("\0").filter(Boolean);
+  const fileSet = new Set(files);
 
   let changed = files;
   if (parentLocal) {
@@ -197,6 +205,16 @@ for (const commit of todo) {
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+  // base_tree 只会「叠加」，不会「删除」：本地删掉/挪走的文件在远端会一直留着。
+  // 之前 git mv 到 app/(app)/ 之后，远端就同时存在 app/calendar 和 app/(app)/calendar，
+  // 构建直接报 “two parallel pages that resolve to the same path”。
+  // GitHub 的 Trees API 支持用 sha:null 删除条目，这里把「远端有、本地没有」的路径全删掉。
+  const gone = [...(remoteFiles ?? [])].filter((p) => !fileSet.has(p));
+  if (gone.length) {
+    for (const p of gone) entries.push({ path: p, mode: "100644", type: "blob", sha: null });
+    console.log(`  删除远端多余文件 ${gone.length} 个`);
+  }
 
   const tree = await gh(`/repos/${REPO}/git/trees`, {
     method: "POST",

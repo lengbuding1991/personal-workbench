@@ -4,6 +4,8 @@
 
 清透蓝绿视觉（成长总览风格），Next.js + SQLite，单用户，无需登录。
 
+![首页](docs/screens/home.webp)
+
 ## 现在能做什么
 
 - **今日行动**：今日任务、今日日程、本周完成率；计划派（周甘特 + 三列看板）与灵感派（甜甜圈推荐）两种视角。
@@ -42,7 +44,7 @@ pnpm start        # http://localhost:3100
 
 - 主数据库：`data/workbench.db`（SQLite，WAL 模式）
 - 自动备份：`data/backups/workbench-YYYY-MM-DD.db`，保留最近 14 份
-- 首次启动会自动建表并写入一组示例数据（7 个任务、4 个日程、3 条记录），方便直接看效果；可在「设置 → 导出」后自行清理。
+- 全新数据库首次启动会自动建表并写入一组示例数据（7 个任务、4 个日程、3 条记录），方便直接看效果；「设置 → 清空全部数据」后不会再次写入。
 
 备份发生在每天第一次打开应用时；也可以直接复制 `data/workbench.db`。
 
@@ -73,6 +75,7 @@ lib/use-pointer-drag.ts 通用指针拖拽（鼠标 5px/触屏长按 220ms 起�
 lib/ai.ts               OpenAI 兼容调用
 data/                   SQLite 与备份（不入库）
 prototypes/             早期 UI 原型（A/B/C 深色 + D 暖白手账，仅存档）
+docs/screens/           README 用的截图（webp，压缩过）
 开发文档.md             需求、范围、数据模型、里程碑
 ```
 

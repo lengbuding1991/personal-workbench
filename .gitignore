@@ -8,5 +8,5 @@ data/backups
 *.tsbuildinfo
 
 # screenshots & design snapshots (large binaries, not part of the app)
-screens/
-prototypes/screens/
+/screens/
+/prototypes/screens/

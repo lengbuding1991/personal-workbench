@@ -27,18 +27,31 @@ export async function POST(req: Request) {
     if (action === "test") {
       const base = (getSetting("ai_base_url", "https://api.deepseek.com") || "").replace(/\/+$/, "");
       const key = getSetting("ai_key", "");
+      const model = getSetting("ai_model", "deepseek-chat") || "deepseek-chat";
       if (!key) return NextResponse.json({ error: "还没有配置 AI Key" }, { status: 400 });
-      const res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+
+      // 先试 /models（不花 token）；有些免费服务商没这个接口，404 就退回
+      // 发一条极短的对话来验证 Key 和模型名，免得它们看起来像「连接失败」。
+      let res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+      if (res.status === 404) {
+        res = await fetch(`${base}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: "hi" }], max_tokens: 1 }),
+        });
+      }
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         let hint = `连接失败（HTTP ${res.status}）`;
-        if (res.status === 401 || res.status === 403) hint = "Key 无效或已失效（401）。DeepSeek 的 Key 以 sk- 开头，检查是否复制完整。";
-        else if (res.status === 404) hint = "Base URL 不对（404）。DeepSeek 填 https://api.deepseek.com，Ollama 填 http://127.0.0.1:11434/v1。";
-        else if (res.status === 402) hint = "账户余额不足（402），去 DeepSeek 平台充值后再试。";
-        else if (/model/i.test(detail)) hint = `模型名可能不对（HTTP ${res.status}）。`;
+        if (res.status === 401 || res.status === 403) hint = "Key 无效或已失效（401）。检查有没有复制完整、末尾有没有多余空格。";
+        else if (res.status === 404)
+          hint = "Base URL 不对（404）。DeepSeek 填 https://api.deepseek.com，智谱填 https://open.bigmodel.cn/api/paas/v4，Ollama 填 http://127.0.0.1:11434/v1。";
+        else if (res.status === 402) hint = "账户余额不足（402），去平台充值后再试。";
+        else if (res.status === 429) hint = "调用太频繁（429）。免费额度一般有速率限制，过一会儿再试。";
+        else if (/model/i.test(detail)) hint = `模型名可能不对（HTTP ${res.status}）。检查有没有拼错，比如 glm-4-flash。`;
         return NextResponse.json({ error: hint }, { status: 502 });
       }
-      const data = await res.json();
+      const data = res.headers.get("content-type")?.includes("json") ? await res.json().catch(() => ({})) : {};
       return NextResponse.json({ ok: true, models: (data?.data || []).slice(0, 8).map((m: { id: string }) => m.id) });
     }
     if (action === "parse") {

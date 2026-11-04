@@ -159,7 +159,29 @@ export default function SettingsApp({
           </div>
 
           <h2 style={{ marginTop: 20 }}>AI 服务</h2>
-          <p className="sub">OpenAI 兼容接口，默认 DeepSeek。Key 只存在本地数据库。</p>
+          <p className="sub">OpenAI 兼容接口。Key 只存在本地数据库，不会上传到别处。</p>
+
+          <div className="ai-presets">
+            {[
+              { label: "DeepSeek", base: "https://api.deepseek.com", model: "deepseek-chat", free: false },
+              { label: "智谱 GLM-4-Flash（免费）", base: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash", free: true },
+              { label: "硅基流动", base: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen2.5-7B-Instruct", free: false },
+              { label: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "google/gemini-2.0-flash-exp:free", free: false },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                className={`chip ${base === p.base ? "on" : ""}`}
+                onClick={() => {
+                  setBase(p.base);
+                  setModel(p.model);
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
           <div className="form">
             <label>Base URL<input value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://api.deepseek.com" /></label>
             <label>模型<input value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-chat" /></label>
@@ -169,18 +191,19 @@ export default function SettingsApp({
                 type="password"
                 value={key}
                 onChange={(e) => setKey(e.target.value.trim())}
-                placeholder={initial.ai_key_set ? "已配置，留空则不修改" : "sk-…"}
+                placeholder={initial.ai_key_set ? "已配置，留空则不修改" : "粘贴你的 Key"}
               />
             </label>
-            {key.length > 0 && !key.startsWith("sk-") && (
+            {key.length > 0 && key.length < 20 && (
               <p className="notice" style={{ margin: "-4px 0 0", color: "#98763F", background: "#FDF8EC", borderColor: "#F3E6C8" }}>
-                DeepSeek 的 Key 以 <b style={{ fontFamily: "var(--mono)" }}>sk-</b> 开头。你现在这串不像 Key（可能是账号 ID 或复制漏了前缀）。
+                这串看起来偏短，Key 一般是 30 位以上。检查一下是不是复制漏了。
               </p>
             )}
           </div>
           <p className="notice">
             {initial.ai_key_set ? "已检测到本地 Key。" : "尚未配置 Key，AI 拆任务与复盘起稿不可用。"}
-            <br />也可以把 Base URL 换成本地 Ollama（如 http://127.0.0.1:11434/v1），模型填 ollama 的模型名。
+            <br />想先零成本试用，点上面的「智谱 GLM-4-Flash（免费）」，去 bigmodel.cn 注册拿 Key 就行，每月自动恢复额度。
+            <br />也可以用本地 Ollama（Base URL 填 http://127.0.0.1:11434/v1）。
           </p>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>

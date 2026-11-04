@@ -17,12 +17,14 @@ const nextConfig: NextConfig = {
   experimental: {
     cpus: 2,
     workerThreads: false,
-    // 客户端路由缓存：默认 force-dynamic 页面在浏览器里缓存 0 秒，
-    // 于是在 首页→任务→首页 这种来回切的时候，每次都要重新绕 CF 回源一次
-    // （单次 ttfb 约 1 秒）。给 30 秒后，30 秒内来回切是本地瞬间切换。
-    // 数据可能滞后最多 30 秒，但每次写操作后都调了 router.refresh()，
-    // 写完立刻拿到新数据，不会有「刚改完看不到」的问题。
-    staleTimes: { dynamic: 30, static: 180 },
+    // 客户端路由缓存：这里必须给 0，不能为了省一次回源就缓存页面。
+    //
+    // 原先设的是 dynamic: 30，理由是「30 秒内来回切不用绕 CF 回源一次」。
+    // 但 router.refresh() 只刷新「当前这一个页面」，其它页面的缓存照样是旧的：
+    // 在「记录」页写完笔记，30 秒内切到「复盘」，看到的还是写之前的数量。
+    // 2026-11-04 用户实际踩到：删掉 3 条灵感，切走再切回来又出现了。
+    // 单人工作台里看到旧数据比多等 1 秒糟糕得多，所以这里不做路由缓存。
+    staleTimes: { dynamic: 0, static: 180 },
   },
   webpack: (config) => {
     config.externals = [...(config.externals || []), "node:sqlite"];

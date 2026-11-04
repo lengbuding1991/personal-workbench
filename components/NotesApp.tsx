@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format, isSameDay, isSameMonth } from "date-fns";
 import { Plus, Trash2, Pin, Archive, Eye, Pencil, PenLine, ChevronLeft } from "lucide-react";
 import { marked } from "marked";
@@ -16,6 +16,7 @@ const sources = ["灵感", "工作", "学习", "复盘"];
 export default function NotesApp({ initial }: { initial: Note[] }) {
   const confirm = useConfirm();
   const toast = useToast();
+  const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -103,6 +104,8 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
           body: { title: t, content: c, source: s, tags: g },
         });
         setSaved(format(new Date(), "HH:mm:ss"));
+        // 通知 Next 丢掉这一页的客户端缓存快照，否则 30 秒内切回来还是旧数据
+        router.refresh();
         // 实时更新本地列表，让左侧标题/摘要立即刷新
         setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, title: t, content: c, source: s, tags: g, updated_at: nowIsoLocal() } : n)));
         return true;
@@ -127,8 +130,29 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     return format(new Date(), "yyyy-MM-dd'T'HH:mm:ssXXX");
   }
 
+  /**
+   * 还没开始写的记录：正文一个字都没有。
+   *
+   * 注意不能要求「标题也空」——起步词（今天的收获/一个想法…）会把标题
+   * 填上，那样第二次点击时这条就不算空了，又会新建一条空壳。
+   */
+  const isBlank = (n: Note) => !n.content.trim();
+
   const create = async (seed?: string) => {
     setShowArchived(false);
+    // 已经有一条空的就不必再建一条：以前点两次「今天的收获」会在库里
+    // 留下两条空记录，统计里的「本周记录」也跟着涨。
+    const blank = notes.find(isBlank);
+    if (blank) {
+      if (seed) {
+        setNotes((prev) => prev.map((n) => (n.id === blank.id ? { ...n, title: seed } : n)));
+        void api(`/api/notes/${blank.id}`, { method: "PATCH", body: { title: seed } }).catch(() => {});
+      }
+      setActiveId(blank.id);
+      setMEditing(true);
+      router.refresh();
+      return;
+    }
     try {
       const data = await api<{ note: Note }>("/api/notes", {
         method: "POST",
@@ -139,6 +163,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
         setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
         setActiveId(note.id);
         setMEditing(true);
+        router.refresh();
       }
     } catch (e) {
       toast(errText(e, "新建记录失败"));
@@ -163,6 +188,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     }
     setNotes((prev) => prev.filter((n) => n.id !== active.id));
     setActiveId(null);
+    router.refresh();
     toast(`已删除「${snap.title || "无标题记录"}」`, {
       label: "撤销",
       onClick: async () => {
@@ -172,6 +198,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
             const note = { ...data.note } as Note;
             setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
             setActiveId(note.id);
+            router.refresh();
           }
         } catch (e) {
           toast(errText(e, "撤销失败"));
@@ -190,6 +217,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
       return;
     }
     setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, pinned: next as 0 | 1, updated_at: nowIsoLocal() } : n)));
+    router.refresh();
     toast(next ? "已置顶，排在最上面" : "已取消置顶");
   };
 
@@ -204,6 +232,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     }
     setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, archived: next as 0 | 1 } : n)));
     setActiveId(null);
+    router.refresh();
     toast(next ? "已归档" : "已取消归档");
   };
 

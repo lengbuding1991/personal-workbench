@@ -16,7 +16,12 @@ export default function Page() {
   const weekly = row<Review>(db, "SELECT * FROM review WHERE date=? AND type='weekly'", weekKey) ?? null;
   const history = rows<Review>(db, "SELECT * FROM review ORDER BY date DESC LIMIT 12");
   const tasks = rows<Task>(db, "SELECT * FROM task WHERE status='done'");
-  const notes = rows<Pick<Note, "id" | "updated_at">>(db, "SELECT id,updated_at FROM note");
+  // 只有「写了东西」的记录才算数：空记录（标题正文都空）不参与统计，
+  // 否则点两次起步词就会虚增本周记录数。
+  const notes = rows<Pick<Note, "id" | "updated_at">>(
+    db,
+    "SELECT id,updated_at FROM note WHERE trim(title)<>'' OR trim(content)<>''"
+  );
   const doneThisWeek = tasks.filter((t) => t.done_at && isWithinInterval(parseISO(t.done_at), { start: ws, end: we })).length;
   const notesThisWeek = notes.filter((n) => isWithinInterval(parseISO(n.updated_at), { start: ws, end: we })).length;
   return (

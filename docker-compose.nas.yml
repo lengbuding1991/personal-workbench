@@ -1,8 +1,9 @@
 # 个人工作台 —— Docker Compose（绿联 NAS 用）
 #
-# 更新策略（按你的要求）：
-#   · 平时 watchtower 每 24 小时自动检查一次（兜底，防止你很久没手动更）
-#   · 设置页有个「立即更新」按钮，点了立刻去叫 watchtower 拉最新镜像并重建
+# 更新策略：
+#   · watchtower 已拆成独立项目（NAS 上单独的「watchtower」项目），
+#     它每 24 小时兜底检查一次，只更新带 enable 标签的容器。
+#   · 设置页的「立即更新」按钮 → 调 http://watchtower:8080（走 wt-net 这个网络）。
 #
 # 数据在 ./data（容器里的 /data），重建容器不会碰它。
 # 备份在 ./data/backups（每天首开自动 VACUUM INTO 一份，保留 14 份）。
@@ -39,7 +40,7 @@ services:
       #（浏览器会丢掉 http 下的 Secure cookie，登录看似成功却一直跳回登录页）。
       WB_SECURE_COOKIE: "0"
       # 「立即更新」按钮要叫的 watchtower 地址与令牌。
-      # WATCHTOWER_URL 用的是 compose 服务名 + 容器内端口 8080（见下面 watchtower）。
+      # watchtower 是独立项目，靠 wt-net 这个网络让 workbench 能解析到它。
       # 令牌两边必须一致，否则点按钮会被 watchtower 拒（401）。
       WATCHTOWER_URL: "http://watchtower:8080"
       WATCHTOWER_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
@@ -64,52 +65,13 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # 自动更新：平时每 24 小时兜底查一次，另外开一个 HTTP API，
-  # 让 workbench 里的「立即更新」按钮能主动叫它立刻更新。
-  #
-  # 绿联的 Docker 引擎较新，必须加 DOCKER_API_VERSION=1.40（否则报
-  # "client version 1.25 is too old"）。其余环境变量是最小集。
-  watchtower:
-    image: ghcr.io/containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
+    # default = 本项目网络；wtnet = 和 watchtower 通信的中立网络
+    networks:
+      - default
+      - wtnet
 
-    volumes:
-      # 挂 docker.sock 它才能操作容器。这是它唯一的权限来源，也是唯一的风险点。
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/localtime:/etc/localtime:ro
-
-    # 8080 是 watchtower HTTP API 的固定端口，只暴露给同 compose 里的
-    # workbench 用（WATCHTOWER_URL=http://watchtower:8080），不映射到宿主机，
-    # 所以外面（包括 CF 隧道）碰不到它。
-    expose:
-      - "8080"
-
-    environment:
-      TZ: Asia/Shanghai
-      # 关键一行：绿联的 Docker 引擎比较新，已经不再支持 1.40 以下的 API。
-      DOCKER_API_VERSION: "1.40"
-      # 更新后删掉旧镜像，否则 76MB × N 很快把系统盘吃满
-      WATCHTOWER_CLEANUP: "true"
-      # 容器一个个重启，不要同时停
-      WATCHTOWER_ROLLING_RESTART: "true"
-      # 只更新带 com.centurylinklabs.watchtower.enable=true 标签的容器。
-      WATCHTOWER_LABEL_ENABLE: "true"
-      # 兜底轮询：每 24 小时自动查一次（86400 秒）。平时不用更频繁，
-      # 想更快时在设置页点「立即更新」即可。
-      WATCHTOWER_POLL_INTERVAL: "86400"
-      # 开 HTTP API 模式（提供 POST /v1/update 供按钮调用）
-      WATCHTOWER_HTTP_API_UPDATE: "true"
-      # 上面开了 API 模式后，默认会停掉定时轮询；这一项告诉它「定时轮询照旧」，
-      # 这样 24 小时兜底 + 手动触发 两样都有。
-      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"
-      # 手动触发时用的令牌，必须和上面 workbench 的 WATCHTOWER_TOKEN 一致
-      WATCHTOWER_HTTP_API_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
-      # 启动时不要打那条横幅，日志干净点
-      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
+networks:
+  # 先在「网络」里手动建好 wt-net，watchtower 也接这个网络
+  wtnet:
+    external: true
+    name: wt-net

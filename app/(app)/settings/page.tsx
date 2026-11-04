@@ -24,6 +24,7 @@ export default function Page() {
         ai_model: map.ai_model ?? "deepseek-chat",
         ai_key_set: Boolean(map.ai_key),
         stats,
+        version: process.env.WORKBENCH_SHA || "dev",
       }}
     />
   );

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Download, Check, Upload } from "lucide-react";
+import { Download, Check, Upload, RefreshCw } from "lucide-react";
 import TopBar from "./TopBar";
 import { useConfirm } from "./Confirm";
 
@@ -16,6 +16,7 @@ export default function SettingsApp({
     ai_model: string;
     ai_key_set: boolean;
     stats: { tasks: number; done: number; notes: number; events: number; reviews: number };
+    version: string;
   };
 }) {
   const router = useRouter();
@@ -34,6 +35,8 @@ export default function SettingsApp({
   const [newPw, setNewPw] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
+  const [updating, setUpdating] = useState(false);
+  const [updMsg, setUpdMsg] = useState("");
 
   const changePw = async () => {
     if (newPw.length < 6) return setPwMsg("新密码至少 6 位");
@@ -138,6 +141,24 @@ export default function SettingsApp({
       } else setMsg(d.error || "导入失败");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const triggerUpdate = async () => {
+    setUpdating(true);
+    setUpdMsg("");
+    try {
+      const res = await fetch("/api/update", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUpdMsg(d.message || "已触发更新，稍等片刻后刷新页面");
+      } else {
+        setUpdMsg(d.error || "触发失败，请重试");
+      }
+    } catch {
+      setUpdMsg("网络异常，没叫动更新");
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -254,6 +275,21 @@ export default function SettingsApp({
           <p className="notice">
             个人工作台 V1 · 本地优先 · 清透蓝绿视觉<br />
             Next.js + SQLite + 原生 node:sqlite · 无第三方云依赖
+          </p>
+
+          <h2 style={{ marginTop: 20 }}>更新工作台</h2>
+          <p className="sub">平时每 24 小时自动查一次，想立刻用新版就点下面。</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="b1" onClick={triggerUpdate} disabled={updating}>
+              <RefreshCw size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
+              {updating ? "触发中…" : "立即更新"}
+            </button>
+            {updMsg && <span className="hint2" style={{ color: updMsg.includes("失败") || updMsg.includes("没叫") || updMsg.includes("缺少") ? "#D2795C" : "#2E8C77" }}>{updMsg}</span>}
+          </div>
+          <p className="notice" style={{ marginTop: 10 }}>
+            当前版本：<b style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{initial.version.slice(0, 7)}</b>
+            <br />点「立即更新」后，watchtower 会去拉最新镜像并重建容器，约 30 秒生效；
+            生效后这个页面会自动刷新成新版本号。构建失败或没新提交时，版本号保持不变。
           </p>
         </section>
       </div>

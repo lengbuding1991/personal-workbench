@@ -12,6 +12,8 @@ ARG NODE_VERSION=24-alpine
 # 构建时把提交 sha 塞进镜像，/api/health 会原样返回，
 # 这样你在 NAS 上跑 curl localhost:3100/api/health 就知道更新到哪一版了。
 ARG WORKBENCH_SHA=dev
+# 构建时间（人可读日期），设置页「当前版本」显示的就是它，比一串 sha 好认。
+ARG BUILD_DATE=unknown
 
 # ---------- 1. 依赖 ----------
 FROM node:${NODE_VERSION} AS deps
@@ -39,6 +41,7 @@ FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 # 全局 ARG 要在每个 stage 里重新声明一次才能用
 ARG WORKBENCH_SHA=dev
+ARG BUILD_DATE=unknown
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
@@ -46,7 +49,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     WORKBENCH_DATA_DIR=/data \
     WORKBENCH_SEED=0 \
-    WORKBENCH_SHA=${WORKBENCH_SHA}
+    WORKBENCH_SHA=${WORKBENCH_SHA} \
+    BUILD_DATE=${BUILD_DATE}
 
 RUN apk add --no-cache libc6-compat tini su-exec \
  && addgroup -g 1001 -S nodejs \

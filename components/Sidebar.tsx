@@ -61,6 +61,7 @@ export default function Sidebar({ userName }: { userName: string }) {
               href={it.href}
               className={isActive(it.href) ? "active" : ""}
               onClick={ping}
+              prefetch
             >
               <Icon />
               <span>{it.label}</span>

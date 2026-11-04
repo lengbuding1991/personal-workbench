@@ -14,6 +14,8 @@ export async function GET() {
     {
       ok: true,
       sha: process.env.WORKBENCH_SHA || "dev",
+      // 镜像构建时间（人可读），设置页「当前版本」显示它
+      built: process.env.BUILD_DATE || "unknown",
       at: new Date().toISOString(),
     },
     { headers: { "cache-control": "no-store" } },

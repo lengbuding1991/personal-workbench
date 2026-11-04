@@ -32,11 +32,14 @@ input,textarea,select{font:inherit;color:inherit;font-family:inherit}
 a{color:inherit}
 
 /* backdrop */
+/* 注意：这里刻意不用 filter:blur(72px)。三个 620/520/460px 的大圆叠加 GPU 高斯模糊，
+ * 每次页面切换、滚动时都要整层重合成，在核显/低端设备上是「切页卡」的头号来源。
+ * 改成 radial-gradient 画出同款柔和光斑，视觉几乎一致，但零滤镜开销（只画一次位图）。 */
 .blobs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.blobs i{position:absolute;border-radius:50%;filter:blur(72px);will-change:auto}
-.blobs .b1{width:620px;height:620px;background:#BFE9F5;opacity:.5;top:-240px;right:-160px}
-.blobs .b2{width:520px;height:520px;background:#D8EAFB;opacity:.55;bottom:-220px;left:60px}
-.blobs .b3{width:460px;height:460px;background:#E4F7EF;opacity:.5;top:36%;left:-190px}
+.blobs i{position:absolute;border-radius:50%;will-change:auto}
+.blobs .b1{width:620px;height:620px;background:radial-gradient(circle at 50% 50%,#BFE9F5 0%,rgba(191,233,245,0) 68%);top:-240px;right:-160px}
+.blobs .b2{width:520px;height:520px;background:radial-gradient(circle at 50% 50%,#D8EAFB 0%,rgba(216,234,251,0) 68%);bottom:-220px;left:60px}
+.blobs .b3{width:460px;height:460px;background:radial-gradient(circle at 50% 50%,#E4F7EF 0%,rgba(228,247,239,0) 68%);top:36%;left:-190px}
 
 /* ---------- sidebar ---------- */
 .side{position:fixed;z-index:30;left:0;top:0;bottom:0;width:236px;padding:20px 14px 16px;display:flex;flex-direction:column;
@@ -990,7 +993,12 @@ body.dragging{cursor:grabbing;user-select:none}
 /* ============ 路由切换骨架屏（app/(app)/loading.tsx） ============
    所有页面都是 force-dynamic，经 CF 回源到 NAS 的 ttfb 约 1 秒。
    骨架屏让「点击 → 有反应」这一下变成即时的，等数据到了再替换。 */
-.skel-page{padding:2px 0 20px;animation:skel-fade .18s ease both}
+/* 骨架屏延迟 150ms 才淡入。
+ * 目的：本地/缓存命中的页面 30–100ms 就渲染完了，骨架屏若「立刻出现」会在
+ * 内容出来前先闪一下，反而放大了「慢」的主观感受。加 150ms 延迟后，快环境
+ * 里内容在骨架亮起前就替换掉了（骨架永远不可见）；只有真正回源慢（线上 CF
+ * 约 1 秒）才会看到骨架。fill-mode both + 初始 opacity:0 保证延迟期不显示。 */
+.skel-page{padding:2px 0 20px;opacity:0;animation:skel-fade .18s ease .15s both}
 @keyframes skel-fade{from{opacity:0}to{opacity:1}}
 .skel-head{display:flex;align-items:flex-end;gap:16px;margin:20px 0 16px}
 .skel-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}

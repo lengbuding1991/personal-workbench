@@ -25,6 +25,7 @@ export default function Page() {
         ai_key_set: Boolean(map.ai_key),
         stats,
         version: process.env.WORKBENCH_SHA || "dev",
+        built: process.env.BUILD_DATE || "",
       }}
     />
   );

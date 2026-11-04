@@ -17,6 +17,7 @@ export default function SettingsApp({
     ai_key_set: boolean;
     stats: { tasks: number; done: number; notes: number; events: number; reviews: number };
     version: string;
+    built: string;
   };
 }) {
   const router = useRouter();
@@ -287,9 +288,9 @@ export default function SettingsApp({
             {updMsg && <span className="hint2" style={{ color: updMsg.includes("失败") || updMsg.includes("没叫") || updMsg.includes("缺少") ? "#D2795C" : "#2E8C77" }}>{updMsg}</span>}
           </div>
           <p className="notice" style={{ marginTop: 10 }}>
-            当前版本：<b style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{initial.version.slice(0, 7)}</b>
+            当前版本：<b style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{initial.built || initial.version.slice(0, 7)}</b>
             <br />点「立即更新」后，watchtower 会去拉最新镜像并重建容器，约 30 秒生效；
-            生效后这个页面会自动刷新成新版本号。构建失败或没新提交时，版本号保持不变。
+            生效后这个页面会自动刷新成新版本日期。构建失败或没新提交时，版本日期保持不变。
           </p>
         </section>
       </div>

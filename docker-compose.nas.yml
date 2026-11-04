@@ -79,6 +79,12 @@ services:
 
     environment:
       TZ: Asia/Shanghai
+      # 关键一行：绿联的 Docker 引擎比较新，已经不再支持 1.40 以下的 API，
+      # 而 watchtower 自带的 Docker 客户端默认按 1.25 去连，于是刷屏：
+      #   "client version 1.25 is too old. Minimum supported API version is 1.40"
+      # 强制声明成 1.40（正好是绿联引擎允许的最低版本）就能连上。
+      # 如果哪天这条报 "client version 1.40 is too old"，把它往上调一档（1.41 / 1.43）。
+      DOCKER_API_VERSION: "1.40"
       # 更新后删掉旧镜像，否则 76MB × N 很快把系统盘吃满
       WATCHTOWER_CLEANUP: "true"
       # 容器一个个重启，不要同时停

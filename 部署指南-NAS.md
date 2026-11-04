@@ -13,12 +13,19 @@
 2. **建一个 Docker 项目** —— 粘贴一段 compose，把 `workbench` 和 `watchtower` 两个容器跑起来。
 3. **把域名接过来** —— 让 `workbench.lbuding.com` 经由 Cloudflare 隧道打到 NAS 的 3100 端口。
 
-跑起来之后，**以后每次更新都不需要你动手**：
+跑起来之后，更新有两种方式：
+
+```
+方式一（平时）：watchtower 每 24 小时自动查一次 → 有新镜像就自动拉取重建
+方式二（想立刻用）：设置页点「立即更新」按钮 → 立刻拉最新镜像并重建（约 30 秒）
+```
+
+完整链路：
 
 ```
 本地改代码 → pnpm push → GitHub Actions 构建镜像（约 4 分钟）
-           → watchtower 每 5 分钟查一次 → 自动拉新镜像、重建容器
-           → 你刷新网页就是最新版
+           → 你点「立即更新」（或等 24 小时兜底）→ 拉新镜像、重建容器
+           → 刷新网页就是最新版
 ```
 
 数据全程在你的 NAS 上（`/volume1/docker/workbench/data`），不经过 GitHub。
@@ -74,6 +81,9 @@ services:
       TZ: Asia/Shanghai
       WORKBENCH_SEED: "0"
       WB_SECURE_COOKIE: "0"
+      # 「立即更新」按钮要叫的 watchtower 地址和令牌（两边必须一致）
+      WATCHTOWER_URL: "http://watchtower:8080"
+      WATCHTOWER_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
     mem_limit: 1500m
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -93,13 +103,27 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+    # 只暴露给同 compose 的 workbench 用，不映射到宿主机（外面碰不到）
+    expose:
+      - "8080"
     environment:
       TZ: Asia/Shanghai
-      WATCHTOWER_POLL_INTERVAL: "300"
+      # 关键一行：绿联的 Docker 引擎较新，必须写 1.40，否则刷
+      # "client version 1.25 is too old. Minimum supported API version is 1.40"
+      DOCKER_API_VERSION: "1.40"
       WATCHTOWER_LABEL_ENABLE: "true"
       WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_INCLUDE_RESTARTING: "true"
-      WATCHTOWER_TIMEOUT: "120s"
+      WATCHTOWER_ROLLING_RESTART: "true"
+      # 兜底轮询：每 24 小时自动查一次
+      WATCHTOWER_POLL_INTERVAL: "86400"
+      # 开 HTTP API 模式，让「立即更新」按钮能主动叫它
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      # 开了 API 模式后默认停掉定时轮询，这行告诉它「轮询照旧」
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"
+      # 手动触发时的令牌，必须和上面 workbench 的一致
+      WATCHTOWER_HTTP_API_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
+      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
     logging:
       driver: json-file
       options:
@@ -110,6 +134,8 @@ services:
 4. 点 **部署**（或「应用」），等两个容器都变 running。
 
 > **老用户迁移**：如果你现在的 compose 里写的是 `image: workbench:latest`（本地导入的那个），把它改成上面 `ghcr.io/...` 那行，再在最底下补 `watchtower` 那段，重新部署一次。数据在 `./data` 里，不受影响。
+>
+> **已经跑着旧 watchtower 的**：把 watchtower 那段整体换成上面的（主要是加 `DOCKER_API_VERSION: "1.40"`、`expose: 8080`、`WATCHTOWER_HTTP_API_*`、`WATCHTOWER_POLL_INTERVAL: "86400"`），workbench 段补 `WATCHTOWER_URL` / `WATCHTOWER_TOKEN` 两行，再重新部署。两边的 `WATCHTOWER_TOKEN` 必须一模一样，否则点「立即更新」会被 watchtower 拒（401）。
 
 ### 这段配置里三个容易踩的点
 
@@ -202,7 +228,7 @@ curl -s https://workbench.lbuding.com/api/health
 
 ---
 
-## 七、以后怎么更新（全自动，你不用管）
+## 七、以后怎么更新（两种方式）
 
 改完代码，本地两条命令：
 
@@ -210,7 +236,7 @@ curl -s https://workbench.lbuding.com/api/health
 git add -A && git commit -m "改了啥" && pnpm push
 ```
 
-然后就没了。接下来全自动：
+然后就没了。接下来分两种：
 
 ```
 pnpm push
@@ -218,13 +244,19 @@ pnpm push
 GitHub Actions 构建 arm64 镜像
    ↓ 约 4 分钟（有缓存时 2 分钟）
 新镜像推到 ghcr.io/…:latest
-   ↓ watchtower 每 5 分钟 poll 一次
-发现 digest 变了 → docker pull → 重建 workbench 容器
-   ↓ 约 30 秒
-刷新网页就是最新版
+   ↓
+   ├─ 方式一：设置页点「立即更新」→ 立刻拉取重建（约 30 秒）
+   └─ 方式二：什么也不做 → 24 小时兜底轮询自动拉取重建
 ```
 
-从 `push` 到线上生效，**最慢约 10 分钟**（取决于 Actions 排队和 watchtower 的下次轮询）。想快一点，把 compose 里 `WATCHTOWER_POLL_INTERVAL` 从 `300` 改成 `60`。
+### 怎么用「立即更新」
+
+1. 打开 `workbench.lbuding.com`，进「设置」页，滚到底部「更新工作台」。
+2. 看「当前版本」那串短码（前 7 位），去 GitHub 的 `main` 分支最新提交对一下。
+3. 点 **立即更新** → 提示「已触发更新」。
+4. 等约 30 秒刷新页面，版本号变了就是成了；没变说明没新提交（或构建还没完成，再等 2 分钟点一次）。
+
+> 构建失败 / 没新提交时，点「立即更新」版本号不会变 —— 这是正常的，不是坏了。你可以去 GitHub 的 Actions 页看构建是不是绿了。
 
 ### watchtower 只动你的工作台
 
@@ -247,7 +279,7 @@ curl -s localhost:3100/api/health
 
 ### 想临时关掉自动更新
 
-Docker → 项目 → `workbench` → 把 `watchtower` 那个服务停掉就行（或把 `WATCHTOWER_POLL_INTERVAL` 设成 `0`，watchtower 就跑一次就退出）。
+Docker → 项目 → `workbench` → 把 `watchtower` 那个服务停掉就行（或把 `WATCHTOWER_POLL_INTERVAL` 设成 `0`，watchtower 就跑一次就退出）。注意：停掉 watchtower 后，「立即更新」按钮也会失效（它靠 watchtower 拉镜像）。
 
 ---
 
@@ -291,4 +323,6 @@ image: ghcr.io/lengbuding1991/personal-workbench:af891e2b1c3d4e5f...
 | 时区 | 由 `TZ=Asia/Shanghai` + 挂 `/etc/localtime` 决定（「今天/本周」全靠它） |
 | 内存上限 | 1500MB（NAS 8G，还要跑别的） |
 | 健康检查 | 每 30s 打 `/api/health`（无鉴权，返回 `{ok,sha,at}`） |
+| 手动更新 | 设置页「立即更新」→ workbench 容器调 watchtower 的 `POST /v1/update` |
+| watchtower 兜底 | 每 24 小时查一次 GHCR `latest`，digest 变了自动重建 workbench |
 | 停止信号 | tini 做 1 号进程，能干净收 SIGTERM |

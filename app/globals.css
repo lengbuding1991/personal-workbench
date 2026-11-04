@@ -751,6 +751,16 @@ body.dragging{cursor:grabbing;user-select:none}
   .drawer{border-radius:0;top:6%}
   .c-head{padding:13px 14px 0}
   .c-body{padding:10px 14px 14px}
+
+  /* 移动端日历：周视图换成「每天一卡」，桌面时间轴隐藏 */
+  .cal2-card .cal2-scroll{display:none}
+  .cal2-mweek{display:flex}
+  .cal2-card .cal2-foot{display:none}
+  .day-side{position:static}
+  /* 弹窗（新日程等）贴底，别超出边框 */
+  .modal{padding:0;align-items:flex-end;background:rgba(23,52,80,.32)}
+  .sheet{width:100%;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  .two{grid-template-columns:1fr}
 }
 
 .done-list{display:flex;flex-direction:column;flex:1}
@@ -919,6 +929,23 @@ body.dragging{cursor:grabbing;user-select:none}
 .ds-foot b{display:block;font-family:var(--mono);font-size:14px;color:#1F9E9A}
 .ds-foot span{font-size:9px;color:#A8B8C6}
 @media (max-width:900px){ .cal2-daywrap{grid-template-columns:1fr} }
+
+/* 移动端周视图：7 列时间轴在手机上挤成一团，改成「每天一卡」的日程列表 */
+.cal2-mweek{display:none;flex-direction:column;gap:10px}
+.mw-day{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 13px}
+.mw-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.mw-head span{font-size:11px;color:#8FA2B3}
+.mw-head b{font-family:var(--mono);font-size:14px;color:#33485A}
+.mw-head i{margin-left:auto;font-style:normal;font-family:var(--mono);font-size:9px;color:#9BAEBD;background:#F2F7FB;border-radius:20px;padding:1px 6px}
+.mw-head button{margin-left:auto;border:0;background:transparent;color:#C3D2DE;display:inline-flex;padding:2px;border-radius:6px}
+.mw-head button:active{color:#3AC8C2;background:rgba(58,200,194,.12)}
+.mw-ev{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;background:#F7FBFE;margin-bottom:5px;cursor:pointer}
+.mw-ev:last-child{margin-bottom:0}
+.mw-ev:active{background:rgba(58,200,194,.10)}
+.mw-ev span{flex:none;font-family:var(--mono);font-size:10px;color:#5E7183}
+.mw-ev b{flex:1;min-width:0;font-size:11px;color:#2C4257;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mw-ev em{flex:none;font-style:normal;font-size:8.5px;color:#A8B8C6}
+.mw-empty{font-size:10px;color:#C2D0DB;padding:6px 2px 2px}
 
 .day-side{position:sticky;top:14px;align-self:start}
 .ds-sec{font-size:9.5px;color:#A8B8C6;letter-spacing:.06em;margin:14px 2px 6px;padding-top:12px;border-top:1px dashed #E8F1F8}

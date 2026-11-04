@@ -467,6 +467,45 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
 
       <div className={view === "day" ? "cal2-daywrap" : ""}>
       <section className="card cal2-card">
+        {/* 移动端周视图：每天一卡的日程列表（桌面端隐藏） */}
+        <div className="cal2-mweek">
+          {days.map((d) => {
+            const key = format(d, "yyyy-MM-dd");
+            const evs = timedOf(key);
+            const allday = allDayOf(key);
+            const tks = tasksOf(key);
+            const isToday = isSameDay(d, now);
+            return (
+              <div className="mw-day" key={`mw-${key}`}>
+                <div className="mw-head">
+                  <span>{format(d, "EEE", { locale: zhCN })}</span>
+                  <b>{format(d, "M月d日")}</b>
+                  {isToday && <i>今天</i>}
+                  {evs.length + allday.length + tks.length > 0 && <i>{evs.length + allday.length + tks.length}</i>}
+                  <button aria-label="新建" onClick={() => openNew(d)}><Plus size={13} /></button>
+                </div>
+                {allday.map((e) => (
+                  <div key={`a-${e.id}`} className="mw-ev" onClick={() => openEdit(e)}>
+                    <span>全天</span><b>{e.title}</b>
+                  </div>
+                ))}
+                {evs.map(({ e, start, end }) => (
+                  <div key={e.id} className="mw-ev" onClick={() => openEdit(e)}>
+                    <span>{hhmm(start)}–{hhmm(end)}</span><b>{e.title}</b>
+                    {e.location ? <em>{e.location}</em> : null}
+                  </div>
+                ))}
+                {tks.map((t) => (
+                  <div key={`t-${t.id}`} className="mw-ev" onClick={() => { window.location.href = `/tasks?focus=${t.id}`; }}>
+                    <span>任务</span><b>{t.title}</b>
+                  </div>
+                ))}
+                {!evs.length && !allday.length && !tks.length && <div className="mw-empty">这天空着，点右上角 + 安排</div>}
+              </div>
+            );
+          })}
+        </div>
+
         <div className="cal2-scroll" ref={scrollRef}>
           <div className="cal2-grid" style={{ gridTemplateColumns: `54px repeat(${days.length}, minmax(112px, 1fr))` }}>
             <div className="cal2-corner">{view === "week" ? "周" : "日"}</div>

@@ -1,10 +1,19 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ensureBackup } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "个人工作台",
   description: "本地优先的个人工作台：任务、日程、记录、复盘与 AI 助手",
+};
+
+// 关掉 iOS Safari 聚焦输入框时自动放大页面（保持输入框现有字号不变）
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export const dynamic = "force-dynamic";

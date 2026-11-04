@@ -15,6 +15,16 @@ name: build-image
 on:
   push:
     branches: [main]
+    # 只改文档/截图/原型时不用重建镜像 —— 这些文件本来就不进最终产物
+    # （runner 阶段只 COPY .next/standalone、static、public，
+    #  .dockerignore 也排除了 *.md、screens、prototypes、.personal-workbench）。
+    # 代价：改完这几类文件后线上版本号不会变，属正常现象。
+    paths-ignore:
+      - "**.md"
+      - ".personal-workbench/**"
+      - "screens/**"
+      - "prototypes/**"
+      - "docs/**"
   workflow_dispatch:
 
 concurrency:

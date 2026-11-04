@@ -76,3 +76,30 @@ V1 不做：登录/多用户、云同步、原生 App、团队协作、支付/�
 | 14 | AI 配置 | `/settings` Base/模型/Key + 测试连接 | ✅（真实调用待 Key） |
 | 15 | AI 整理记录 | `/ai` 拆任务 → 勾选入库 | ✅（真实调用待 Key） |
 | 16 | AI 生成复盘 | `/review` AI 起稿 | ✅（真实调用待 Key） |
+
+## 上线后新增（2026-11-03 ~ 11-04）
+
+16 项 P0 之外，用户实际用起来之后补的。全部已上线。
+
+| # | 功能 | 落点 | 状态 |
+|---|---|---|---|
+| 17 | 登录与访问控制 | `app/login`、`lib/auth.ts`、`(app)/layout.tsx` 验签、14 个 API 加 `requireAuth()` | ✅ |
+| 18 | Docker 化 + 自动更新 | `Dockerfile`（arm64 多阶段）、`docker-compose.nas.yml`、watchtower、GitHub Actions | ✅ |
+| 19 | 「立即更新」按钮 | 设置页 → `POST /api/update` → watchtower HTTP API | ✅（端到端未实测） |
+| 20 | 切页卡顿治理 | `loading.tsx` 骨架屏、`NavProgress` 顶部进度线、`staleTimes` 路由缓存、削减 GPU blur | ✅ |
+| 21 | 自定义日期选择器 | `components/DateField.tsx`（react-day-picker）、`SearchDates.tsx`，替换日历/任务/搜索三处原生控件 | ✅ |
+| 22 | 手机端适配 | 底部 6 Tab、日历每天一卡、笔记列表/编辑分屏、弹窗居中、viewport 禁缩放 | ✅ |
+| 23 | 错误边界与 404 | `app/(app)/error.tsx`、`app/not-found.tsx` | ✅ |
+| 24 | 统一请求封装 | `lib/api.ts` 的 `api()` / `errText()`，20 余处请求接入 | ✅ |
+| 25 | 版本号可追溯 | 镜像内 `/app/VERSION`，`/api/health` 与设置页同源读取 | ✅ |
+| 26 | GHCR 镜像自动清理 | 构建后 `delete-package-versions` 只留 2 个 + 手动 `cleanup-images.yml` | ✅ |
+
+## 已知未完成
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| DeepSeek Key | ⏳ 待用户填 | `ai_key` 为空，AI 拆任务 / 复盘起稿 / 连接测试都是灰的 |
+| 真机 iPhone 实测 | ⏳ 待验证 | 只在 CDP 390×844 模拟环境下验证过 |
+| 备份恢复演练 | ⏳ 待做 | 备份机制在跑（14 份），但没真正恢复过一次 |
+| 「立即更新」端到端 | ⏳ 待验证 | 按钮 → watchtower HTTP API → 重建容器，整条链路没实测 |
+| 阿里云那台清理 | ⏳ 用户明确说不用管 | 已迁到 NAS，那台留着跑老项目 |

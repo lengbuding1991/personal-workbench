@@ -273,7 +273,11 @@ compose 里的 `WATCHTOWER_LABEL_ENABLE: "true"` + workbench 容器的 `com.cent
 curl -s localhost:3100/api/health
 ```
 
-返回的 `sha` 就是当前跑的是哪个提交。和 GitHub 上 `main` 的最新 sha 一比就知道有没有更新到。
+返回的 `sha` 就是当前跑的是哪个提交，`built` 是镜像构建时间（上海时区）。和 GitHub 上 `main` 的最新 sha 一比就知道有没有更新到。
+
+> 这两个值读的是镜像里的 `/app/VERSION` 文件，**不是环境变量**。所以即使你在绿联界面里给容器加过 `WORKBENCH_SHA`，也盖不掉它 —— 以前这里显示过和实际镜像对不上的旧版本号，就是这个原因。
+
+设置页底部「当前版本」显示的也是同一份数据。
 
 或者直接看 watchtower 的日志：Docker → 容器 → `watchtower` → 日志，会打印 `Found new image` / `Stopping /workbench` / `Creating /workbench`。
 

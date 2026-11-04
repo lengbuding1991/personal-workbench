@@ -22,6 +22,10 @@
 - **版面**：卡片网格与看板按内容自适应，空列底部是「＋ 添加任务」虚线卡；记录页左栏底部有「本月记录 / 每周记录数 / 常用标签」小面板。
 - **任务页收尾区**：看板下面还有「最近七天收尾节奏」（横向进度行）与「刚刚做完的」（最近完成 4 条 + 补位提示），整页一屏铺满、不留大块空白。
 - **登录**：单密码进入，页面与 API 全部需登录；会话 cookie 由密码哈希派生签名，改密码即刻踢掉其他设备。
+- **日期选择**：日历、任务、搜索三处统一用自绘的日历弹层（桌面浮层 / 手机底部抽屉），不再弹系统原生面板（底层是 react-day-picker）；月份可翻、今天高亮、时间按时/分两个下拉选。
+- **手机上**：底部 6 个 Tab；日历默认日视图、周视图是「每天一卡」；记录页是「列表 ⇄ 编辑」两块屏，点进去写、左上角返回；弹窗垂直居中，不会被底部横条挡住；点输入框不会整页放大。
+- **出错时**：页面崩溃有错误边界（能重试或回首页），不存在的地址是中文 404 页；任何保存/删除失败都会明确告诉你原因，不会静默失败。
+- **设置页**：显示当前镜像的版本号与构建时间（直接读镜像内的 `VERSION` 文件，环境变量改不动它）。
 
 ## 登录
 
@@ -79,23 +83,26 @@ app/
   (app)/                需登录的应用区：layout.tsx 验签 + 侧栏外壳
     page.tsx            今日行动
     tasks/ calendar/ notes/ review/ ai/ stats/ settings/ search/
+    error.tsx           路由级错误边界（界面崩了能重试）
+  not-found.tsx         404 页
   api/                  tasks notes events reviews search settings export import reminders ai auth
 components/             Dashboard, TasksPage, CalendarApp, NotesApp, ReviewApp, AiApp, StatsApp, SettingsApp,
                         Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal,
-                        AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
+                        DateField, SearchDates, AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
 middleware.ts           粗筛 cookie（真实验签在 (app)/layout.tsx，因为 edge 读不到 SQLite）
 lib/auth.ts             scrypt 密码哈希 + HMAC 会话 cookie + requireAuth()
 lib/db.ts               schema、迁移、seed、设置、每日备份
 lib/use-tasks.ts        任务本地状态、乐观更新、删除撤销
 lib/use-pointer-drag.ts 通用指针拖拽（鼠标 5px/触屏长按 220ms 起拖）
 lib/ai.ts               OpenAI 兼容调用
+lib/api.ts              统一请求封装（网络异常/非 2xx/401 跳登录）
 data/                   SQLite 与备份（不入库）
 prototypes/             早期 UI 原型（A/B/C 深色 + D 暖白手账，仅存档）
 docs/screens/           README 用的截图（webp，压缩过）
 开发文档.md             需求、范围、数据模型、里程碑
 ```
 
-技术栈：Next.js 15 App Router、React 19、TypeScript、Tailwind v4、`node:sqlite`、zod、date-fns、Recharts 未使用（统计图表用 CSS 实现）、lucide-react。
+技术栈：Next.js 15 App Router、React 19、TypeScript、Tailwind v4（只用了 preflight，样式全在 `app/globals.css`）、`node:sqlite`、zod、date-fns、react-day-picker、lucide-react。
 
 ## 边界（V1 不做）
 
@@ -107,7 +114,8 @@ docs/screens/           README 用的截图（webp，压缩过）
 ## 开发说明
 
 - 所有页面 `force-dynamic`，数据实时读 SQLite。
-- `node:sqlite` 返回 null-prototype 行对象，传给客户端组件前需 `{...row}` 转普通对象（`app/page.tsx` 已处理）。
+- `node:sqlite` 返回 null-prototype 行对象，直接传给客户端组件会报 `Only plain objects...`。用 `lib/db.ts` 的 `rows<T>()` / `row<T>()` 取数即可，不要自己写 `.map(r => ({...r}))`（早期 13 处重复已统一）。
+- 所有请求走 `lib/api.ts` 的 `api()`，失败会抛带中文文案的 `ApiError`，用 `errText(e)` 转成提示语。别再直接 `fetch` —— 那样网络一断就静默失败。
 - 数据库迁移在 `getDb()` 里用 `ensureColumn` 做轻量 ALTER，新增字段无需手动迁移。
 - 类型检查：`pnpm exec tsc --noEmit`；构建：`pnpm build`。
 - 任务的本地状态与撤销逻辑集中在 `lib/use-tasks.ts`；提示由 `components/Toast.tsx` 提供，弹窗由 `components/Confirm.tsx` 提供，拖拽由 `lib/use-pointer-drag.ts` + `components/DragGhost.tsx` 提供。
@@ -123,7 +131,8 @@ docs/screens/           README 用的截图（webp，压缩过）
 
 1. NAS 上拉 `ghcr.io/lengbuding1991/personal-workbench:latest`（公开包，匿名可拉）；
 2. 粘贴 [docker-compose.nas.yml](docker-compose.nas.yml)，一次起 `workbench` + `watchtower` 两个容器；
-3. 以后本机 `pnpm push` → GitHub Actions 构建 arm64 镜像 → watchtower 每 5 分钟自动拉取重建。
+3. 以后本机 `pnpm push` → GitHub Actions 构建 arm64 镜像 → watchtower 拉取重建（默认 24 小时兜底轮询；想立刻更新就在「设置 → 更新工作台」点按钮，会通过 watchtower 的 HTTP API 主动触发）。
+4. GHCR 只保留最新 2 个镜像版本，每次构建后自动清理。
 
 数据在 NAS 的 `/volume1/docker/workbench/data`（容器里是 `/data`），重建容器不影响。
 `watchtower` 只更新打了 `com.centurylinklabs.watchtower.enable=true` 标签的容器，不碰 NAS 上其它服务。

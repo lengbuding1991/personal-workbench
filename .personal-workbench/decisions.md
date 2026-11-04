@@ -201,3 +201,73 @@ http 下直接丢掉 cookie，登录看似成功却一直跳回登录页（本�
 **为什么用「自定义事件 + pathname 变化」判断导航进度**：Next 15 App Router 没有暴露 route-change 事件，`useRouter` 也没有 `events`。用 `pathname` 变化做结束信号 + 4 秒兜底，是客户端能拿到的最可靠信号。
 
 **为什么不把页面改成 ISR 或静态**：全部页面服务端直读 SQLite 且要登录态，静态化会把「别人能不能看」变成构建期决定，安全性下降；`force-dynamic` 必须留。
+
+## 2026-11-04 — 第十三～十七轮：手机端适配（弹窗居中 / 禁缩放 / 日程不显示 / 笔记分屏 / 日号对齐）
+
+这五轮全部由用户拿手机实际使用后反馈驱动，没有一次是自己发现的。
+
+**弹窗被底部横条挡住**：先做贴底抽屉，用户说还挡。根因是 `env(safe-area-inset-bottom)` 需要 `viewport-fit=cover` 才生效，且软键盘弹起时贴底更糟。改成垂直居中 + 限高 88vh + 中间表单滚动 + 按钮固定底部。
+
+**iOS 输入框聚焦放大整页**：第一版强制 `font-size:16px !important` 被否（「想保持现在的字体大小」）。第二版改 viewport `maximumScale:1 + userScalable:false`，字号不动。代价是不能双指缩放整页 —— iOS 上两者无法兼得。
+
+**手机上日程一条都不显示**：DOM 里有 2 条 `.mw-ev`，但 `.cal2-mweek` 的 computed display 是 none。原因：媒体查询里的 `.cal2-mweek{display:flex}`（第 757 行）与基础规则 `.cal2-mweek{display:none}`（第 942 行）特异性相同，后写的赢。修法是把媒体查询那条提到 `.cal2-card .cal2-mweek`（0,2,0 压 0,1,0）。**教训：媒体查询写在前面 + 同特异性 = 被覆盖。**
+
+**手机端笔记页**：列表 + 随手记卡 + 统计 + 编辑器全纵向摞，编辑器在两屏之外。照备忘录 App 改成「列表 ⇄ 编辑」两块屏：`mEditing` 状态切 `m-list`/`m-edit` 类，编辑态隐藏侧栏与页头，顶部加返回按钮。
+
+**首页「04」压在「三」上**：`.w-days div.today b{display:inline-grid}` 是行内级元素，不独占一行。改成所有日号统一 23px `grid` 方块，今天只多圆形底色。
+
+## 2026-11-04 — 第十四～十六轮：日期选择器三版迭代（最终用 react-day-picker）
+
+用户：「选择日期的那个地方点击的弹窗太丑了，丑的不得了」。
+
+**第一版手写日历网格**：踩到 `position:fixed` 被祖先 `transform` 劫持的坑 —— `.df-pop` 渲染在 `.sheet` 内，`.sheet` 有 `animation:pin` 带 `transform:translateY(6px)`，导致弹层偏移越界。修法是 `createPortal(..., document.body)`。注意：即使动画结束后的 `matrix(1,0,0,1,0,0)` 等价于无变换，只要不是 `none` 就成立包含块。
+
+**第二版参考 Ant Design / iOS 滚轮**：实现 `Wheel` 子组件（scroll-snap 中心吸附）。用户否：「更难看了」。
+
+**关键认知**：那几轮用的模型不支持图片输入（`read_image` 报 `does not declare image input`），modlens 也没配 provider —— 一直在盲改。换成能读图的模型后，直接看截图才发现两个硬伤：星期表头与第一行日期挤在同一行；手机端出现两个「确定」按钮。
+
+表头错位的根因很有意思：`.rdp-month_grid` 是 `<table>`，我给它写了 `display:flex` —— flex 让 `<thead>` 和 `<tbody>` 变成并排的 flex item。**表元素不能随便改 display。**
+
+**第三版（采用）**：`react-day-picker@10.0.2`（shadcn/ui 的 Calendar 底层）。不覆盖内部结构，只用 CSS 变量注入主题（`--rdp-accent-color` 等），选中态从默认的「边框圈」改成实心渐变。桌面是 304px 紧凑浮层，手机是底部抽屉。
+
+**又踩一个**：受控 `month={month}` 会让月份翻不动 —— 传了就是受控，内部状态不更新。只留 `defaultMonth`。
+
+**教训**：看不见就别手写视觉组件，用经过验证的库；表元素别改 display；一个弹层里同一个动作只留一个按钮。
+
+## 2026-11-04 — 第十八轮：全项目健壮性扫描
+
+用户：「你重新扫描整理整个项目，看看还有哪里可以优化的」。这一轮不看功能，只看「出问题时用户会经历什么」。
+
+- **零错误边界**（最严重）：`app/` 下没有任何 `error.tsx` / `not-found.tsx`，任何页面抛错就是整片白屏。补齐 `app/(app)/error.tsx`（带 `error.digest`、重试、回首页）与 `app/not-found.tsx`。
+- **16 处静默失败**：29 处 `await fetch` 只有 13 处有 catch。最坏的是 `TaskModal` 保存失败仍关弹窗。新建 `lib/api.ts`（`ApiError` + `api()` + `errText()`），20 余处请求全部换过来。
+- **备份日期 UTC 偏差**：`new Date().toISOString().slice(0,10)` 在北京时间 0–8 点算成前一天，导致备份该触发时不触发。新增 `todayLocal()` 手工拼本地日期。
+- **13 处重复 `.map(r => ({...r}))`**：`node:sqlite` 返回 null-prototype 对象的问题，抽成 `rows<T>()` / `row<T>()` 收口。
+- **提醒铃铛关不掉**：无点外部关闭、无 Esc。补 `useEffect`。
+- **补 4 个索引**：`idx_task_sched`、`idx_task_done`（可进 SCHEMA），`idx_note_pin_upd`、`idx_note_arch`（**不能进 SCHEMA** —— `note.archived` 是 `ensureColumn` 后补的列，全新库建索引会报列不存在，必须放 `getDb()` 里迁移之后）。
+- **删除未用依赖**：`clsx`、`tailwind-merge` 全项目 0 引用。
+
+改动量 21 文件 +438/−247。
+
+## 2026-11-04 — 第十九轮：版本号读 VERSION 文件（环境变量优先级陷阱）
+
+**现象**：线上 `/api/health` 的 `sha` 一直是 `b53570b`（11-04 01:28 那版），但 `built` 是新的 `22:01`。两项本该一起变。
+
+**排查**：直接拉 GHCR 镜像 config，里面明明是 `WORKBENCH_SHA=fa8faa5...`。`BUILD_DATE` 能正确显示、`WORKBENCH_SHA` 不能 —— 这个不对称说明**绿联界面里手工加了 `WORKBENCH_SHA` 环境变量，把镜像里的值盖掉了**（容器环境变量优先级高于 Dockerfile 的 ENV）。
+
+**修法**：不跟环境变量纠缠。`Dockerfile` 构建时 `printf '%s\n%s\n' "${WORKBENCH_SHA}" "${BUILD_DATE}" > /app/VERSION`，`/api/health` 与设置页都优先 `readFileSync(VERSION)`，读不到才退回环境变量。
+
+**验证**：本地无文件走兜底（`sha:"dev"`）、有文件读文件（`sha:"testsim123"`）都正确。线上重新部署后 `sha:dcde0dd...`、`built:2026-11-04 22:42`，与当次构建一致。
+
+**教训**：要权威的版本信息就得写进镜像；排查「配置为什么不生效」先问「这个值还有哪些来源、谁优先级更高」。
+
+## 2026-11-04 — 第二十轮：GHCR 只留最新 2 个镜像
+
+**先纠错**：我最初说「免费额度 500MB，20 个版本超标」是**错的**。查 [GitHub Packages 计费文档](https://docs.github.com/en/billing/concepts/product-billing/github-packages)：public packages 免费，500MB/1GB 配额只约束 private 包。本项目包是 public，从没花过钱。
+
+清理仍做，理由是快照堆到 20 个翻起来乱、也防政策变化。
+
+**手动清理**：token 原本缺 `delete:packages`（403）。用户补权限后按 `created_at` 倒序保留最新 2 个，**20 → 2**，18 次删除全成功。顺带删掉残留仓库 `workbench-image`（204）。
+
+**自动清理**：`.github/workflows/docker.yml` 末尾加 `actions/delete-package-versions@v5`（`min-versions-to-keep: 2`、`continue-on-error: true` —— 清理失败不该让构建显示红叉）；新建 `cleanup-images.yml` 供手动指定保留数。
+
+**实测**：构建后清理步骤 ✅ 成功，且**没有配 `PACKAGES_PAT`** —— 说明 `GITHUB_TOKEN` 对自己仓库的包有删除权限，之前「必须 PAT」的判断偏保守。

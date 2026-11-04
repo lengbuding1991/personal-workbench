@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { format, isSameDay, isSameMonth } from "date-fns";
 import { Plus, Trash2, Pin, Archive, Eye, Pencil, PenLine } from "lucide-react";
 import { marked } from "marked";
@@ -13,12 +13,12 @@ import { useToast } from "./Toast";
 const sources = ["灵感", "工作", "学习", "复盘"];
 
 export default function NotesApp({ initial }: { initial: Note[] }) {
-  const router = useRouter();
   const confirm = useConfirm();
   const toast = useToast();
   const params = useSearchParams();
   const [q, setQ] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [notes, setNotes] = useState<Note[]>(() => initial.map((n) => ({ ...n })));
   const [activeId, setActiveId] = useState<number | null>(initial.find((n) => !n.archived)?.id ?? null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -26,51 +26,62 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
   const [tagText, setTagText] = useState("");
   const [preview, setPreview] = useState(false);
   const [saved, setSaved] = useState<string>("");
+  const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  // 保存时读这里的最新值，避免闭包捕获旧 state（stale closure）
+  const draft = useRef({ title: "", content: "", source: "灵感", tags: "" });
 
-  const active = useMemo(() => initial.find((n) => n.id === activeId) ?? null, [initial, activeId]);
+  const active = useMemo(() => notes.find((n) => n.id === activeId) ?? null, [notes, activeId]);
 
   useEffect(() => {
     const id = params.get("id");
     if (id) setActiveId(Number(id));
   }, [params]);
 
+  // 服务端快照变化时同步到本地，保证列表与数据库一致
   useEffect(() => {
-    if (active) {
-      setTitle(active.title);
-      setContent(active.content);
-      setSource(active.source || "灵感");
-      setTagText(active.tags || "");
+    setNotes(initial);
+  }, [initial]);
+
+  useEffect(() => {
+    const n = notes.find((x) => x.id === activeId);
+    if (n) {
+      setTitle(n.title);
+      setContent(n.content);
+      setSource(n.source || "灵感");
+      setTagText(n.tags || "");
+      draft.current = { title: n.title, content: n.content, source: n.source || "灵感", tags: n.tags || "" };
       setSaved("");
       setPreview(false);
     }
-  }, [activeId, active]);
+    // 只在切换记录时重置，不随 notes 内容变化重跑，避免清掉「已保存」提示
+  }, [activeId]);
 
-  const filtered = initial.filter(
+  const filtered = notes.filter(
     (n) => Boolean(n.archived) === showArchived && (!q || n.title.includes(q) || n.content.includes(q) || (n.tags || "").includes(q))
   );
 
   const monthCount = useMemo(
-    () => initial.filter((n) => !n.archived && isSameMonth(new Date(n.created_at), new Date())).length,
-    [initial]
+    () => notes.filter((n) => !n.archived && isSameMonth(new Date(n.created_at), new Date())).length,
+    [notes]
   );
   const allTags = useMemo(() => {
     const set = new Set<string>();
-    initial.forEach((n) => (n.tags || "").split(/[,，\s]+/).forEach((t) => { const v = t.trim(); if (v) set.add(v); }));
+    notes.forEach((n) => (n.tags || "").split(/[,，\s]+/).forEach((t) => { const v = t.trim(); if (v) set.add(v); }));
     return Array.from(set).slice(0, 6);
-  }, [initial]);
+  }, [notes]);
 
   const weekSeries = useMemo(() => {
     const days: { label: string; n: number; today: boolean }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const n = initial.filter((x) => !x.archived && isSameDay(new Date(x.created_at), d)).length;
+      const n = notes.filter((x) => !x.archived && isSameDay(new Date(x.created_at), d)).length;
       days.push({ label: ["日", "一", "二", "三", "四", "五", "六"][d.getDay()], n, today: i === 0 });
     }
     return days;
-  }, [initial]);
+  }, [notes]);
   const weekMax = Math.max(1, ...weekSeries.map((d) => d.n));
   const weekCount = weekSeries.reduce((a, b) => a + b.n, 0);
 
@@ -78,16 +89,33 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     if (!active) return;
     if (timer.current) clearTimeout(timer.current);
     const run = async () => {
-      await fetch(`/api/notes/${active.id}`, {
+      // 从 draft.current 读最新值，而不是闭包里的 state（避免 stale closure）
+      const { title: t, content: c, source: s, tags: g } = draft.current;
+      const res = await fetch(`/api/notes/${active.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, source, tags: tagText }),
+        body: JSON.stringify({ title: t, content: c, source: s, tags: g }),
       });
-      setSaved(format(new Date(), "HH:mm"));
+      if (res.ok) {
+        setSaved(format(new Date(), "HH:mm:ss"));
+        // 实时更新本地列表，让左侧标题/摘要立即刷新
+        setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, title: t, content: c, source: s, tags: g, updated_at: nowIsoLocal() } : n)));
+      }
+      return res.ok;
     };
-    if (immediate) await run();
-    else timer.current = setTimeout(run, 700);
+    if (immediate) {
+      setSaving(true);
+      const ok = await run();
+      setSaving(false);
+      if (ok) toast("已保存");
+    } else {
+      timer.current = setTimeout(run, 700);
+    }
   };
+
+  function nowIsoLocal() {
+    return format(new Date(), "yyyy-MM-dd'T'HH:mm:ssXXX");
+  }
 
   const create = async (seed?: string) => {
     setShowArchived(false);
@@ -98,8 +126,9 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     });
     const data = await res.json();
     if (data.note) {
-      setActiveId(data.note.id);
-      router.refresh();
+      const note = { ...data.note } as Note;
+      setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+      setActiveId(note.id);
     }
   };
 
@@ -114,8 +143,8 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     if (!ok) return;
     const snap = { title: active.title, content: active.content, source: active.source, tags: active.tags };
     await fetch(`/api/notes/${active.id}`, { method: "DELETE" });
+    setNotes((prev) => prev.filter((n) => n.id !== active.id));
     setActiveId(null);
-    router.refresh();
     toast(`已删除「${snap.title || "无标题记录"}」`, {
       label: "撤销",
       onClick: async () => {
@@ -125,8 +154,11 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
           body: JSON.stringify(snap),
         });
         const data = await res.json();
-        if (data.note) setActiveId(data.note.id);
-        router.refresh();
+        if (data.note) {
+          const note = { ...data.note } as Note;
+          setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+          setActiveId(note.id);
+        }
       },
     });
   };
@@ -138,7 +170,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pinned: active.pinned ? 0 : 1 }),
     });
-    router.refresh();
+    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, pinned: (active.pinned ? 0 : 1) as 0 | 1 } : n)));
   };
 
   const toggleArchive = async () => {
@@ -148,11 +180,11 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archived: active.archived ? 0 : 1 }),
     });
+    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, archived: (active.archived ? 0 : 1) as 0 | 1 } : n)));
     setActiveId(null);
-    router.refresh();
   };
 
-  const html = useMemo(() => marked.parse(content || "", { async: false }) as string, [content]);
+  const html = useMemo(() => marked.parse(content || "", { async: false, breaks: true }) as string, [content]);
 
 
   return (
@@ -164,7 +196,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
         <div>
           <div className="eyebrow">NOTES · 记录灵感</div>
           <h1>先记下来，再慢慢整理。</h1>
-          <p>{initial.filter((n) => !n.archived).length} 条记录 · 自动保存</p>
+          <p>{notes.filter((n) => !n.archived).length} 条记录 · 自动保存</p>
         </div>
         <div className="right">
           <button className={`chip ${!showArchived ? "on" : ""}`} onClick={() => setShowArchived(false)}>记录</button>
@@ -241,7 +273,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
               <input
                 className="title"
                 value={title}
-                onChange={(e) => { setTitle(e.target.value); save(); }}
+                onChange={(e) => { setTitle(e.target.value); draft.current.title = e.target.value; save(); }}
                 placeholder="给这条记录起个标题"
               />
               <div className="sub">
@@ -251,11 +283,11 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
               </div>
               <div className="tags" style={{ marginBottom: 8 }}>
                 {sources.map((s) => (
-                  <button key={s} className={`tg ${source === s ? "on" : ""}`} onClick={() => { setSource(s); save(true); }}>{s}</button>
+                  <button key={s} className={`tg ${source === s ? "on" : ""}`} onClick={() => { setSource(s); draft.current.source = s; save(true); }}>{s}</button>
                 ))}
                 <input
                   value={tagText}
-                  onChange={(e) => { setTagText(e.target.value); save(); }}
+                  onChange={(e) => { setTagText(e.target.value); draft.current.tags = e.target.value; save(); }}
                   placeholder="标签，逗号分隔"
                   style={{ flex: 1, minWidth: 100, border: 0, background: "transparent", fontSize: 9, outline: "none", color: "#9A8F82" }}
                 />
@@ -273,7 +305,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
                 <textarea
                   ref={taRef}
                   value={content}
-                  onChange={(e) => { setContent(e.target.value); save(); }}
+                  onChange={(e) => { setContent(e.target.value); draft.current.content = e.target.value; save(); }}
                   placeholder="想到什么就写什么，不用整理…支持 Markdown"
                 />
               )}
@@ -283,7 +315,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
                 <button className="b-small" onClick={toggleArchive}><Archive size={10} style={{ verticalAlign: -1, marginRight: 3 }} />{active.archived ? "移出归档" : "归档"}</button>
                 <button className="b-small danger" onClick={remove}><Trash2 size={10} style={{ verticalAlign: -1, marginRight: 3 }} />删除</button>
                 <span className="hint2" style={{ marginLeft: "auto" }}>停止输入 0.7 秒后自动保存</span>
-                <button className="b1" onClick={() => save(true)}>立即保存</button>
+                <button className="b1" onClick={() => save(true)} disabled={saving}>{saving ? "保存中…" : "立即保存"}</button>
               </div>
             </>
           ) : (

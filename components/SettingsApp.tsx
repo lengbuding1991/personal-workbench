@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Download, Check, Upload, RefreshCw } from "lucide-react";
+import { Download, Check, Upload, RefreshCw, Database } from "lucide-react";
 import TopBar from "./TopBar";
 import { useConfirm } from "./Confirm";
 import { api, errText } from "@/lib/api";
@@ -238,20 +238,19 @@ export default function SettingsApp({
 
         <section className="card set-card">
           <h2>数据</h2>
-          <p className="sub">数据目录：本机 data/workbench.db</p>
+          <p className="sub">数据库文件 workbench.db，下面的「下载完整数据库」拿到的就是这个文件本身。</p>
           <div className="form">
-            <Link href="/api/export" className="b1" style={{ textAlign: "center", textDecoration: "none" }}>
-              <Download size={12} style={{ verticalAlign: -2, marginRight: 4 }} />导出全部数据（JSON）
+            <Link href="/api/export-db" className="b1" style={{ textAlign: "center", textDecoration: "none" }}>
+              <Database size={12} style={{ verticalAlign: -2, marginRight: 4 }} />下载完整数据库（.db）
+            </Link>
+            <Link href="/api/export" className="b2" style={{ textAlign: "center", textDecoration: "none" }}>
+              <Download size={12} style={{ verticalAlign: -2, marginRight: 4 }} />导出为 JSON（可读，用于迁移）
             </Link>
             <label className="b2" style={{ textAlign: "center", cursor: "pointer", display: "block" }}>
               <Upload size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{importing ? "导入中…" : "导入 JSON 备份"}
               <input type="file" accept="application/json,.json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }} />
             </label>
           </div>
-          <p className="notice">
-            导出包含任务、日程、记录、复盘与外部引用；不含 AI Key。<br /><br />
-            V1 不做云同步。以后部署到服务器时，把 data 目录一起带走即可。
-          </p>
 
           <div style={{ marginTop: 14, borderTop: "1px dashed var(--line)", paddingTop: 14 }}>
             <p className="sub" style={{ marginBottom: 8 }}>清空示例数据 / 从零开始（保留设置与 AI Key）</p>

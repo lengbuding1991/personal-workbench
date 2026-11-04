@@ -21,6 +21,8 @@ export type Task = {
   scheduled_start: string | null;
   scheduled_end: string | null;
   estimate_min: number | null;
+  repeat_rule: string;
+  remind_min: number | null;
   done_at: string | null;
   sort: number;
   created_at: string;
@@ -42,6 +44,8 @@ export type Note = {
 export type EventRow = {
   id: number;
   title: string;
+  repeat_rule: string;
+  remind_min: number | null;
   start_at: string;
   end_at: string | null;
   all_day: 0 | 1;
@@ -75,6 +79,7 @@ CREATE TABLE IF NOT EXISTS project (
   color TEXT NOT NULL DEFAULT '#9B8AE6',
   area TEXT NOT NULL DEFAULT 'work',
   status TEXT NOT NULL DEFAULT 'active',
+  note TEXT NOT NULL DEFAULT '',
   sort INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -284,6 +289,13 @@ export function getDb(): DatabaseSync {
   ensureColumn(db, "task", "tags", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "note", "tags", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "note", "archived", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "project", "note", "TEXT NOT NULL DEFAULT ''");
+  // 重复规则：none / daily / weekly / monthly / weekdays，存在就按 repeat_rule 展开
+  ensureColumn(db, "task", "repeat_rule", "TEXT NOT NULL DEFAULT 'none'");
+  ensureColumn(db, "event", "repeat_rule", "TEXT NOT NULL DEFAULT 'none'");
+  // 提醒：日程/任务提前多少分钟提醒
+  ensureColumn(db, "task", "remind_min", "INTEGER");
+  ensureColumn(db, "event", "remind_min", "INTEGER");
 
   // 依赖上面迁移补的列，所以不能写进 SCHEMA 里（全新库建索引时会找不到 archived 列）
   db.exec("CREATE INDEX IF NOT EXISTS idx_note_pin_upd ON note(pinned, updated_at);");

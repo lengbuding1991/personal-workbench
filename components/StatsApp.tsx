@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChartNoAxesColumn, CheckCircle2, Download, ListTodo, NotebookPen, CalendarCheck } from "lucide-react";
+import { ChartNoAxesColumn, CheckCircle2, Download, ListTodo, NotebookPen, CalendarCheck, Flame } from "lucide-react";
 import TopBar from "./TopBar";
 
 const areaLabel: Record<string, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
@@ -13,8 +13,12 @@ export default function StatsApp({
   notes,
   reviews,
   activeDays,
+  streak,
   series,
+  series30,
+  heatDays,
   areaStats,
+  projectStats,
   recentDone,
   tagStats,
 }: {
@@ -23,13 +27,30 @@ export default function StatsApp({
   notes: number;
   reviews: number;
   activeDays: number;
+  streak: number;
   series: { label: string; date: string; n: number }[];
+  series30: { date: string; n: number }[];
+  heatDays: { date: string; n: number; note: boolean }[];
   areaStats: { area: string; total: number; done: number }[];
+  projectStats: { id: number; name: string; color: string; total: number; done: number }[];
   recentDone: { id: number; title: string; area: string; done_at: string | null }[];
   tagStats: { tag: string; n: number }[];
 }) {
   const max = Math.max(1, ...series.map((s) => s.n));
   const rate = total ? Math.round((done / total) * 100) : 0;
+
+  /*
+   * 热力图按「周一到周日」分列铺开。
+   * 先算出第一格是星期几，前面补空，这样每一列才是完整的一周，
+   * 否则列和星期对不上，看不出「每周三都在做」这种规律。
+   */
+  const heatMax = Math.max(1, ...heatDays.map((d) => d.n));
+  const lead = heatDays.length ? new Date(heatDays[0].date + "T00:00:00").getDay() : 0;
+  const leadPad = (lead + 6) % 7; // 周一 = 0
+  const heatCells = [...Array(leadPad).fill(null), ...heatDays];
+  const weeks: (typeof heatCells)[] = [];
+  for (let i = 0; i < heatCells.length; i += 7) weeks.push(heatCells.slice(i, i + 7));
+  const level = (n: number) => (n === 0 ? 0 : n <= heatMax * 0.34 ? 1 : n <= heatMax * 0.67 ? 2 : 3);
 
   return (
     <>
@@ -81,6 +102,64 @@ export default function StatsApp({
 
       <div className="home-grid">
         <section className="card span2">
+          <div className="c-head">
+            <h2>近半年坚持</h2>
+            <span className="sub">
+              <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
+              连续 {streak} 天 · 共 {activeDays} 天有产出
+            </span>
+          </div>
+          <div className="c-body">
+            <div className="heat">
+              <div className="heat-weeks">
+                {weeks.map((w, wi) => (
+                  <div className="heat-col" key={wi}>
+                    {w.map((d, di) =>
+                      d ? (
+                        <i
+                          key={di}
+                          className={`heat-cell l${level(d.n)}`}
+                          title={`${d.date}${d.n ? ` · ${d.n} 件` : d.note ? " · 有记录" : ""}`}
+                        />
+                      ) : (
+                        <i key={di} className="heat-cell blank" />
+                      )
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="heat-legend">
+                <span>少</span>
+                <i className="heat-cell l0" />
+                <i className="heat-cell l1" />
+                <i className="heat-cell l2" />
+                <i className="heat-cell l3" />
+                <span>多</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card span2">
+          <div className="c-head"><h2>最近 30 天</h2><span className="sub">每天的完成件数</span></div>
+          <div className="c-body">
+            <div className="line30">
+              {series30.map((s) => {
+                const m = Math.max(1, ...series30.map((x) => x.n));
+                return (
+                  <i
+                    key={s.date}
+                    style={{ height: `${Math.max(2, (s.n / m) * 100)}%`, opacity: s.n ? 1 : 0.22 }}
+                    title={`${s.date} · ${s.n} 件`}
+                  />
+                );
+              })}
+            </div>
+            <div className="line30-x"><span>{series30[0]?.date}</span><span>{series30[series30.length - 1]?.date}</span></div>
+          </div>
+        </section>
+
+        <section className="card span2">
           <div className="c-head"><h2>最近 7 天完成的任务</h2><span className="sub">按完成日统计</span></div>
           <div className="c-body">
             <div className="big-bars">
@@ -113,6 +192,25 @@ export default function StatsApp({
             {!areaStats.length && <div className="center-empty" style={{ padding: "22px 0" }}><p>还没有数据。</p></div>}
           </div>
         </section>
+
+        {projectStats.length > 0 && (
+          <section className="card span2">
+            <div className="c-head"><h2>项目推进</h2><span className="sub">按完成比例</span><Link href="/projects" className="more">项目进度 →</Link></div>
+            <div className="c-body">
+              {projectStats.map((p) => {
+                const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+                return (
+                  <div className="pj-stat" key={p.id}>
+                    <span className="pj-stat-dot" style={{ background: p.color }} />
+                    <span className="pj-stat-n">{p.name}</span>
+                    <div className="pj-stat-bar"><i style={{ width: `${pct}%`, background: p.color }} /></div>
+                    <span className="pj-stat-num">{p.done}/{p.total} · {pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="card span2">
           <div className="c-head"><h2>最近完成的</h2><span className="sub">按完成时间倒序</span><Link href="/tasks" className="more">任务面板 →</Link></div>

@@ -759,10 +759,14 @@ body.dragging{cursor:grabbing;user-select:none}
 @media (max-width:640px){
   .side{left:0;right:0;top:auto;bottom:0;width:auto;height:60px;flex-direction:row;align-items:center;padding:5px 6px;border-right:0;border-top:1px solid var(--line);
     background:rgba(255,255,255,.94)}
+  /* 手机底部导航：只显示前 4 个主入口 + 右侧「更多」按钮（由 Sidebar 渲染）
+     第二组（.nav-2nd）和设置、品牌、头像全部收起，收进「更多」弹层。
+     以前 .nav-foot 被隐藏导致手机上根本没有设置入口，现在设置挪进「更多」。 */
   .brand,.side-foot,.tagline,.nav-foot{display:none}
-  .nav{flex-direction:row;justify-content:space-around;width:100%;gap:0}
+  .nav .nav-2nd{display:none}
+  .nav{flex-direction:row;justify-content:space-around;width:calc(100% - 62px);gap:0}
   .nav button,.nav a{flex:1;min-width:0;flex-direction:column;gap:3px;padding:6px 0;font-size:9px;line-height:1.1;border-radius:10px}
-  .nav button span,.nav a span{display:block;font-size:9px;white-space:nowrap;letter-spacing:-.02em}
+  .nav button span,.nav a span{display:block;font-size:9px;white-space:nowrap;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis}
   .nav button svg,.nav a svg{width:17px;height:17px}
   main{margin:0;padding:16px 13px 92px}
   h1{font-size:25px}
@@ -1229,3 +1233,127 @@ body.dragging{cursor:grabbing;user-select:none}
 .rv-autosum{margin:2px 0 14px;padding:10px 12px;border-radius:10px;background:#F5FAFD;
   border:1px solid #E9F3FA;font-size:11.5px;color:#6A7F92;line-height:1.6}
 .rv-autosum b{color:#1F9E9A;font-family:var(--mono);font-weight:600}
+
+
+/* ===== 手机端「更多」：底部导航第 5 格 + 弹出面板 ===== */
+.m-more-btn{display:none}
+@media (max-width:640px){
+  .m-more-btn{display:flex;position:fixed;bottom:0;right:6px;width:56px;height:60px;z-index:41;
+    flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:none;
+    color:#8FA2B3;font-size:9px;letter-spacing:-.02em;cursor:pointer}
+  .m-more-btn.active{color:var(--acc-d)}
+  .m-more-btn svg{width:17px;height:17px}
+  .m-more-btn:active{opacity:.6}
+
+  .m-more-mask{position:fixed;inset:0;z-index:120;background:rgba(23,52,80,.3);backdrop-filter:blur(2px);
+    display:flex;align-items:flex-end;animation:maskIn .16s ease both}
+  .m-more{width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+    box-shadow:0 -14px 40px rgba(23,52,80,.18);animation:sheetUp .24s cubic-bezier(.22,1,.36,1) both}
+  .m-more-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .m-more-head b{font-size:14px;color:#2C4257}
+  .m-more-head button{border:0;background:#F2F7FB;width:28px;height:28px;border-radius:50%;
+    display:grid;place-items:center;color:#7C8F9F;cursor:pointer}
+  .m-more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .m-more-grid a{display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 6px;
+    border-radius:14px;background:#F8FBFE;color:#5C7086;text-decoration:none;font-size:10.5px;transition:.14s}
+  .m-more-grid a.on{background:var(--acc-soft);color:var(--acc-d);font-weight:600}
+  .m-more-grid a:active{transform:scale(.97)}
+  .m-more-grid a svg{width:20px;height:20px}
+  .m-more-out{width:100%;margin-top:12px;padding:11px;border:1px solid var(--line);background:#fff;
+    border-radius:12px;color:#8FA2B3;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  @keyframes maskIn{from{opacity:0}to{opacity:1}}
+}
+
+
+/* ===== 项目进度页 ===== */
+.pj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:12px}
+.pj-grid.dim{opacity:.62}
+.pj-card{background:var(--card);border:1px solid #EDF4FA;border-radius:18px;box-shadow:var(--sh);
+  padding:14px 15px;display:flex;flex-direction:column;gap:9px;transition:.16s}
+.pj-card:hover{border-color:#DCEBF7;box-shadow:0 10px 26px rgba(37,84,133,.07)}
+.pj-card.open{border-color:var(--acc-line)}
+.pj-top{display:flex;align-items:center;gap:9px;cursor:pointer}
+.pj-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.pj-meta{min-width:0;flex:1}
+.pj-meta b{display:block;font-size:13px;color:#2C4257;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pj-meta span{font-size:9.5px;color:#A8B8C6}
+.pj-pct{font-family:var(--mono);font-size:12px;color:#5C7086;font-weight:600;flex:none}
+.pj-bar{height:5px;border-radius:99px;background:#EEF5FA;overflow:hidden}
+.pj-bar i{display:block;height:100%;border-radius:99px;transition:width .3s ease}
+.pj-note{margin:0;font-size:10px;color:#8FA2B3;line-height:1.55}
+.pj-acts{display:flex;gap:5px;margin-top:auto;padding-top:3px}
+.pj-acts button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 0;font-size:9.5px;
+  color:#7C8F9F;cursor:pointer;transition:.13s}
+.pj-acts button:hover{background:#F6FBFE;border-color:#CFE4F4;color:#4E6579}
+.pj-acts button.danger:hover{background:#FDF0EE;border-color:#F8DCD7;color:#D4705F}
+.pj-tasks{border-top:1px dashed #EAF2F9;margin-top:2px;padding-top:9px;display:flex;flex-direction:column;gap:6px}
+.pj-task{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#4E6579;min-width:0}
+.pj-task.done b{color:#A8B8C6;text-decoration:line-through}
+.pj-task b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.pj-task em{font-style:normal;font-family:var(--mono);font-size:9px;color:#B6C8D6;flex:none}
+.pj-tick{width:13px;height:13px;border-radius:50%;border:1.5px solid #DDE9F3;flex:none;
+  display:grid;place-items:center;color:#fff}
+.pj-tick.on{background:linear-gradient(140deg,#4FD3C8,#33A9D6);border-color:transparent}
+.pj-empty{margin:2px 0;font-size:10px;color:#B6C8D6}
+.pj-sec{margin:20px 0 10px;font-size:10.5px;color:#A8B8C6;font-weight:600;letter-spacing:.04em}
+.pj-hint{margin:16px 0 0;font-size:10.5px;color:#A8B8C6}
+.pj-hero{background:var(--card);border:1px dashed #DDE9F3;border-radius:20px;padding:34px 24px;
+  display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;color:#B6C8D6}
+.pj-hero svg{color:#C7D8E4}
+.pj-hero b{font-size:14px;color:#5C7086;font-weight:600}
+.pj-hero p{margin:0 0 6px;font-size:11px;color:#A8B8C6;line-height:1.7}
+.pj-colors{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.pj-color{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;
+  transition:.14s;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
+.pj-color.on{border-color:#2C4257;transform:scale(1.06)}
+@media (max-width:640px){
+  .pj-grid{grid-template-columns:1fr}
+  .pj-hero{padding:28px 18px}
+}
+
+/* ===== 搜索页：结果类型标签 ===== */
+.sh-kind{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:6px;
+  font-size:9px;font-weight:600;letter-spacing:.02em;vertical-align:1px}
+.sh-kind.k-task{background:#E8F2FC;color:#3A7CB5}
+.sh-kind.k-note{background:#EAF8F5;color:#2E8C77}
+.sh-kind.k-event{background:#F3EEFC;color:#7A5FC0}
+.sh-kind.k-review{background:#FDF2E6;color:#B07A35}
+
+/* ===== 表单里的重复/提醒行标签 ===== */
+.lf-label{display:inline-flex;align-items:center;gap:3px}
+
+/* ===== 统计页：热力图 ===== */
+.heat{overflow-x:auto;padding-bottom:2px}
+.heat-weeks{display:flex;gap:3px;min-width:max-content}
+.heat-col{display:flex;flex-direction:column;gap:3px}
+.heat-cell{display:block;width:11px;height:11px;border-radius:2.5px;background:#EDF4FA}
+.heat-cell.blank{background:transparent}
+.heat-cell.l0{background:#EDF4FA}
+.heat-cell.l1{background:#BEE7E1}
+.heat-cell.l2{background:#6FD0C2}
+.heat-cell.l3{background:#2E9E92}
+.heat-legend{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:9px;color:#A8B8C6}
+.heat-legend span{padding:0 3px}
+
+/* ===== 统计页：30 天柱线 ===== */
+.line30{display:flex;align-items:flex-end;gap:2px;height:64px;padding:2px 0}
+.line30 i{flex:1;min-width:2px;display:block;border-radius:2px 2px 0 0;
+  background:linear-gradient(180deg,#6FD0C2,#33A9D6)}
+.line30-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:#A8B8C6;margin-top:4px}
+
+/* ===== 统计页：项目推进 ===== */
+.pj-stat{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #F2F7FB}
+.pj-stat:last-child{border-bottom:0}
+.pj-stat-dot{width:8px;height:8px;border-radius:3px;flex:none}
+.pj-stat-n{width:96px;font-size:11px;color:#3A4D5F;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pj-stat-bar{flex:1;height:7px;border-radius:99px;background:#EEF5FA;overflow:hidden}
+.pj-stat-bar i{display:block;height:100%;border-radius:99px;transition:width .3s}
+.pj-stat-num{font-family:var(--mono);font-size:9px;color:#8FA2B3;width:72px;text-align:right;flex:none}
+
+/* 手机上热力图纵向压缩一点，避免占太高 */
+@media (max-width:640px){
+  .heat-cell{width:9px;height:9px}
+  .pj-stat-n{width:70px}
+  .pj-stat-num{width:58px}
+}

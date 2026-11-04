@@ -20,10 +20,17 @@ const cols = [
   { key: "done", label: "完成", dot: "#3AC8C2" },
 ] as const;
 
-export default function TasksPage({ initial }: { initial: Task[] }) {
+export default function TasksPage({
+  initial,
+  projectList = [],
+}: {
+  initial: Task[];
+  /** 任务弹窗里「项目」下拉用（真正的项目表） */
+  projectList?: { id: number; name: string }[];
+}) {
   const params = useSearchParams();
   const confirm = useConfirm();
-  const { tasks, cycle, setStatus, remove, removeMany, setManyStatus } = useTasks(initial);
+  const { tasks, cycle, setStatus, remove, removeMany, setManyStatus, reorder } = useTasks(initial);
   const [area, setArea] = useState<Area | "all">("all");
   const [q, setQ] = useState("");
   const [due, setDue] = useState<"all" | "today" | "week" | "overdue">("all");
@@ -66,7 +73,25 @@ export default function TasksPage({ initial }: { initial: Task[] }) {
     const col = el?.closest("[data-status]") as HTMLElement | null;
     setHoverCol(null);
     const next = col?.dataset.status as TaskStatus | undefined;
-    if (next && next !== payload.task.status) setStatus(payload.task, next);
+    if (!next) return;
+
+    // 拖到别的列 = 改状态
+    if (next !== payload.task.status) {
+      setStatus(payload.task, next);
+      return;
+    }
+
+    // 拖回同一列 = 调顺序：看落点压在哪张卡上/下
+    const card = el?.closest("[data-task-id]") as HTMLElement | null;
+    const overId = card ? Number(card.dataset.taskId) : null;
+    if (!overId || overId === payload.task.id) return;
+
+    const ids = tasks.filter((t) => t.status === next).sort((a, b) => a.sort - b.sort).map((t) => t.id);
+    const from = ids.indexOf(payload.task.id);
+    const to = ids.indexOf(overId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    void reorder(next, ids);
   });
 
   const last7 = useMemo(() => {
@@ -245,6 +270,7 @@ export default function TasksPage({ initial }: { initial: Task[] }) {
                 <div
                   className={`tcard ${t.status === "done" ? "done" : ""} ${picked.includes(t.id) ? "picked" : ""} ${ghost && dragId === t.id ? "lifted" : ""}`}
                   key={t.id}
+                  data-task-id={t.id}
                   onPointerDown={(e) => {
                     if (picking) return;
                     const target = e.target as HTMLElement;
@@ -379,6 +405,7 @@ export default function TasksPage({ initial }: { initial: Task[] }) {
         task={modal.task}
         onClose={() => setModal({ open: false, task: null })}
         onDelete={remove}
+        projects={projectList}
       />
     </>
   );

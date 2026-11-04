@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, Area, Priority, TaskStatus } from "@/lib/db";
 import DateField from "./DateField";
+import { RepeatField, RemindField } from "./RepeatFields";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
 import { api, errText } from "@/lib/api";
@@ -21,11 +22,14 @@ export default function TaskModal({
   onClose,
   task,
   onDelete,
+  projects = [],
 }: {
   open: boolean;
   onClose: () => void;
   task?: Task | null;
   onDelete?: (task: Task) => void | Promise<void>;
+  /** 可选的项目列表。传了就显示下拉，不传就只留自由文本。 */
+  projects?: { id: number; name: string }[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -40,8 +44,11 @@ export default function TaskModal({
   const [end, setEnd] = useState("");
   const [estimate, setEstimate] = useState("");
   const [project, setProject] = useState("");
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [tags, setTags] = useState("");
+  const [repeat, setRepeat] = useState("none");
+  const [remind, setRemind] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -56,8 +63,11 @@ export default function TaskModal({
     setEnd(task?.scheduled_end?.slice(0, 16) ?? "");
     setEstimate(task?.estimate_min ? String(task.estimate_min) : "");
     setProject(task?.project ?? "");
+    setProjectId(task?.project_id ?? null);
     setStatus(task?.status ?? "todo");
     setTags(task?.tags ?? "");
+    setRepeat(task?.repeat_rule ?? "none");
+    setRemind(task?.remind_min ?? null);
   }, [open, task]);
 
   if (!open) return null;
@@ -75,7 +85,10 @@ export default function TaskModal({
       scheduled_end: end || null,
       estimate_min: estimate ? Number(estimate) : null,
       project,
+      project_id: projectId,
       tags,
+      repeat_rule: repeat,
+      remind_min: remind,
       status,
     };
     try {
@@ -149,7 +162,25 @@ export default function TaskModal({
           <div className="two">
             <label>
               项目
-              <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="比如：客户 A / 小红书" />
+              {projects.length > 0 ? (
+                <select
+                  value={projectId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setProjectId(v ? Number(v) : null);
+                    // 同时把名字写进 project 字段，导出/搜索时还能看到文字
+                    const hit = projects.find((p) => String(p.id) === v);
+                    setProject(hit ? hit.name : "");
+                  }}
+                >
+                  <option value="">不归项目</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="比如：客户 A / 小红书" />
+              )}
             </label>
             <label>
               标签
@@ -195,6 +226,15 @@ export default function TaskModal({
               <DateField mode="datetime" value={end} onChange={setEnd} />
             </label>
           </div>
+          <div className="two">
+            <RepeatField value={repeat} onChange={setRepeat} />
+            <RemindField value={remind} onChange={setRemind} />
+          </div>
+          {repeat !== "none" && (
+            <p className="hint2">
+              重复的任务在勾完这一条后，会自动把下一次排到往后一格，原来那条留在历史里。
+            </p>
+          )}
         </div>
         {err ? <div className="form-err">{err}</div> : null}
         <div className="acts">

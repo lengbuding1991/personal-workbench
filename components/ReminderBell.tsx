@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
-type Item = { kind: "task" | "event"; id: number; title: string; at: string; priority: string; overdue?: boolean };
+type Item = { kind: "task" | "event"; id: number; title: string; at: string; priority: string; overdue?: boolean; remindAt?: string };
 
 export default function ReminderBell() {
   const [items, setItems] = useState<Item[]>([]);
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState<string>("default");
+  const [nowStr, setNowStr] = useState("");
   const seen = useRef<Set<string>>(new Set());
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -19,6 +20,7 @@ export default function ReminderBell() {
       const data = await res.json();
       const list: Item[] = data.items || [];
       setItems(list);
+      if (data.now) setNowStr(data.now);
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         for (const it of list) {
           const key = `${it.kind}-${it.id}`;
@@ -88,7 +90,7 @@ export default function ReminderBell() {
               <span className={`bell-dot ${it.kind}`} />
               <div style={{ minWidth: 0 }}>
                 <b>{it.title}</b>
-                <small>{it.kind === "event" ? "日程" : "任务"}{it.at ? ` · ${it.at.includes("T") ? format(parseISO(it.at), "HH:mm") : "今天"}` : ""}{it.overdue ? " · 已到期" : ""}</small>
+                <small>{it.kind === "event" ? "日程" : "任务"}{it.at ? ` · ${it.at.includes("T") ? format(parseISO(it.at), "HH:mm") : "今天"}` : ""}{it.overdue ? " · 已到期" : it.remindAt && it.remindAt <= (nowStr || "") ? " · 该做了" : ""}</small>
               </div>
             </div>
           ))}

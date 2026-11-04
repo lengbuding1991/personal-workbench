@@ -2,15 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addDays, format, isSameDay, parseISO, startOfWeek } from "date-fns";
+import { addDays, format, isSameDay, parseISO, startOfDay, startOfWeek } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, Plus, Trash2 } from "lucide-react";
 import type { EventRow, Task } from "@/lib/db";
 import TopBar from "./TopBar";
 import DateField from "./DateField";
+import { RepeatField, RemindField } from "./RepeatFields";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
 import { api, errText } from "@/lib/api";
+import { expandEvents } from "@/lib/repeat";
 
 type Draft = {
   mode: "new" | "edit";
@@ -21,6 +23,8 @@ type Draft = {
   place: string;
   note: string;
   allDay: boolean;
+  repeat: string;
+  remind: number | null;
 };
 
 const DAY_START = 0;
@@ -118,9 +122,17 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const headTone = (id: number) => tones[id % tones.length];
 
   /* ---------------- 数据分组 ---------------- */
-  const allDayOf = (key: string) => list.filter((e) => e.all_day && e.start_at.slice(0, 10) === key);
+  // 重复日程在库里只存一条基准记录，显示这一屏时才按规则展开成多份。
+  // `list` 保留原始记录（编辑/删除要操作真正那一行），`shown` 才是渲染用的。
+  const shown = useMemo(() => {
+    const lo = view === "week" ? ws : startOfDay(selected);
+    const hi = view === "week" ? addDays(ws, 6) : startOfDay(selected);
+    return expandEvents(list, lo, hi);
+  }, [list, view, ws, selected]);
+
+  const allDayOf = (key: string) => shown.filter((e) => e.all_day && e.start_at.slice(0, 10) === key);
   const timedOf = (key: string) =>
-    list
+    shown
       .filter((e) => !e.all_day && e.start_at.slice(0, 10) === key)
       .map((e) => {
         const s = parseISO(e.start_at);
@@ -307,6 +319,8 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
       place: "",
       note: "",
       allDay: false,
+      repeat: "none",
+      remind: null,
     });
   };
 
@@ -320,6 +334,8 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
       place: e.location || "",
       note: e.note || "",
       allDay: !!e.all_day,
+      repeat: e.repeat_rule || "none",
+      remind: e.remind_min ?? null,
     });
 
   const save = async () => {
@@ -333,6 +349,8 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
       location: draft.place,
       note: draft.note,
       all_day: draft.allDay ? 1 : 0,
+      repeat_rule: draft.repeat,
+      remind_min: draft.remind,
     };
     try {
       if (draft.mode === "edit" && draft.id) {
@@ -389,13 +407,13 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   };
 
   const weekCount = useMemo(
-    () => list.filter((e) => days.some((d) => e.start_at.slice(0, 10) === format(d, "yyyy-MM-dd"))).length,
+    () => shown.filter((e) => days.some((d) => e.start_at.slice(0, 10) === format(d, "yyyy-MM-dd"))).length,
     [list, days]
   );
 
   /* 这天的空档：起床到 21 点之间，没被日程占住、≥60 分钟的连续区间 */
   const dayKey = format(selected, "yyyy-MM-dd");
-  const dayEvents = list.filter((e) => e.start_at.slice(0, 10) === dayKey);
+  const dayEvents = shown.filter((e) => e.start_at.slice(0, 10) === dayKey);
   const busy = dayEvents
     .filter((e) => !e.all_day)
     .map((e) => [
@@ -781,6 +799,10 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
                 备注
                 <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="可选" />
               </label>
+              <div className="two">
+                <RepeatField value={draft.repeat} onChange={(v) => setDraft({ ...draft, repeat: v })} />
+                <RemindField value={draft.remind} onChange={(v) => setDraft({ ...draft, remind: v })} />
+              </div>
             </div>
             {err ? <div className="form-err">{err}</div> : null}
             <div className="acts">

@@ -12,18 +12,21 @@
 - **任务**：增删改、三态（待办 / 进行中 / 完成）、优先级、分类、项目、标签、截止日、安排时间段；按今天/本周/逾期/项目筛选；多选后批量完成 / 设为进行中 / 删除。
 - **日历**：时间轴周视图 / 日视图（**0:00–24:00 全天刻度**、凌晨段淡灰底、全天行、重叠日程并排、当前时间线）；点空白新建、点日程编辑；**日程可拖动改时间与日期**，底部边缘可拉长缩短；任务小卡可拖到某天改截止日；日视图右侧有「本周任务 / 空闲时间 / 今日统计」。
 - **记录**：快速记录（任意页面按 `c`）、Markdown 编辑/预览、标签、置顶、归档、搜索。
-- **搜索**：`⌘K` 全局搜索，`↑` `↓` 选择、`↵` 打开；或 `/search` 按类型与时间范围过滤。
+- **搜索**：`⌘K` 快捷搜索（`↑` `↓` 选择、`↵` 打开）；`/search` 页可搜四类内容（任务 / 记录 / 日程 / 复盘），多个关键词用空格分开会要求全部命中，标题命中的排在前面，可按类型与时间范围过滤。
 - **复盘**：日复盘 3 问、周复盘（自动汇总本周完成与记录数）；日/周都可用 AI 基于真实数据起稿。
-- **AI 助手**：把碎碎念拆成任务（勾选确认后才入库）；DeepSeek / 任意 OpenAI 兼容接口 / 本地 Ollama。
-- **提醒**：页面开着时，未来 4 小时的日程与今日到期任务会进铃铛；授权后可弹浏览器通知。
-- **数据**：每日自动备份（保留 14 份）、JSON 导出/导入、AI Key 只存本地服务端。
+- **AI 助手**：把碎碎念拆成任务（勾选确认后才入库）；DeepSeek / 任意 OpenAI 兼容接口 / 本地 Ollama。设置页内置了几个免费服务商的预设。
+- **提醒**：铃铛里列逾期任务、今天到期、12 小时内要做的；任务与日程都可设「提前 5 分钟 / 1 小时 / 1 天」等提前量，重复日程也会按时提醒。
+- **项目**：项目进度页，一个项目一张卡（进度条 / 完成数 / 颜色），点开看该项目下的任务；删项目不删任务。
+- **重复**：任务与日程都支持「每天 / 每个工作日 / 每周 / 每月」。日程是虚拟展开（库里一条，显示多条）；任务在勾完这一条后自动生成下一次。
+- **统计**：近半年热力图（连续天数）、近 30 天趋势、各条线推进、项目推进对比、常用标签。
+- **数据**：一键下载完整 `workbench.db` 文件（原地恢复用）、JSON 导出/导入、每日本地备份（保留 14 份）、AI Key 只存本地服务端。
 - **反馈**：所有操作即时生效（乐观更新），完成后底部弹提示；删除任务 / 记录 / 日程都可以在提示里点「撤销」。
-- **拖拽**：任务面板与首页看板的卡片按住就能拖到「待办 / 进行中 / 完成」另一列，松手即改状态；目标列会高亮。
+- **拖拽**：任务面板与首页看板的卡片按住就能拖到别的列改状态；在同一列里拖动会调整前后顺序（一次写完整列，断网不会留半套顺序）。
 - **版面**：卡片网格与看板按内容自适应，空列底部是「＋ 添加任务」虚线卡；记录页左栏底部有「本月记录 / 每周记录数 / 常用标签」小面板。
 - **任务页收尾区**：看板下面还有「最近七天收尾节奏」（横向进度行）与「刚刚做完的」（最近完成 4 条 + 补位提示），整页一屏铺满、不留大块空白。
 - **登录**：单密码进入，页面与 API 全部需登录；会话 cookie 由密码哈希派生签名，改密码即刻踢掉其他设备。
 - **日期选择**：日历、任务、搜索三处统一用自绘的日历弹层（桌面浮层 / 手机底部抽屉），不再弹系统原生面板（底层是 react-day-picker）；月份可翻、今天高亮、时间按时/分两个下拉选。
-- **手机上**：底部 6 个 Tab；日历默认日视图、周视图是「每天一卡」；记录页是「列表 ⇄ 编辑」两块屏，点进去写、左上角返回；弹窗垂直居中，不会被底部横条挡住；点输入框不会整页放大。
+- **手机上**：底部 4 个主入口 + 「更多」抽屉（设置、项目、复盘、AI、数据、搜索都在抽屉里）；日历默认日视图、周视图是「每天一卡」；记录页是「列表 ⇄ 编辑」两块屏，点进去写、左上角返回；弹窗垂直居中，不会被底部横条挡住；点输入框不会整页放大。
 - **出错时**：页面崩溃有错误边界（能重试或回首页），不存在的地址是中文 404 页；任何保存/删除失败都会明确告诉你原因，不会静默失败。
 - **设置页**：显示当前镜像的版本号与构建时间（直接读镜像内的 `VERSION` 文件，环境变量改不动它）。
 
@@ -78,23 +81,25 @@ pnpm start        # http://localhost:3100
 
 ```
 app/
-  layout.tsx            根布局（html/body + 备份触发）
+  layout.tsx            根布局（html/body + 每日备份触发）
   login/                登录页（独立于应用外壳）
   (app)/                需登录的应用区：layout.tsx 验签 + 侧栏外壳
     page.tsx            今日行动
-    tasks/ calendar/ notes/ review/ ai/ stats/ settings/ search/
+    tasks/ calendar/ notes/ projects/ review/ ai/ stats/ settings/ search/
     error.tsx           路由级错误边界（界面崩了能重试）
   not-found.tsx         404 页
-  api/                  tasks notes events reviews search settings export import reminders ai auth
-components/             Dashboard, TasksPage, CalendarApp, NotesApp, ReviewApp, AiApp, StatsApp, SettingsApp,
-                        Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal,
-                        DateField, SearchDates, AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
+  api/                  tasks notes events projects reviews search settings export export-db import reminders ai auth
+components/             Dashboard, TasksPage, CalendarApp, NotesApp, ProjectsApp, ReviewApp, AiApp, StatsApp,
+                        SettingsApp, Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal,
+                        DateField, SearchDates, RepeatFields, AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
 middleware.ts           粗筛 cookie（真实验签在 (app)/layout.tsx，因为 edge 读不到 SQLite）
 lib/auth.ts             scrypt 密码哈希 + HMAC 会话 cookie + requireAuth()
 lib/db.ts               schema、迁移、seed、设置、每日备份
 lib/use-tasks.ts        任务本地状态、乐观更新、删除撤销
 lib/use-pointer-drag.ts 通用指针拖拽（鼠标 5px/触屏长按 220ms 起拖）
 lib/ai.ts               OpenAI 兼容调用
+lib/repeat.ts           重复规则（每天/工作日/每周/每月）与日程虚拟展开
+lib/search.ts           四类内容搜索（多词 AND、标题加权）
 lib/api.ts              统一请求封装（网络异常/非 2xx/401 跳登录）
 data/                   SQLite 与备份（不入库）
 prototypes/             早期 UI 原型（A/B/C 深色 + D 暖白手账，仅存档）

@@ -13,6 +13,8 @@ const Patch = z.object({
   all_day: z.number().int().optional(),
   location: z.string().max(160).optional(),
   note: z.string().max(2000).optional(),
+  repeat_rule: z.enum(["none", "daily", "weekdays", "weekly", "monthly"]).optional(),
+  remind_min: z.number().int().min(0).max(10080).nullable().optional(),
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {

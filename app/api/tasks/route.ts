@@ -17,7 +17,10 @@ const Create = z.object({
   scheduled_end: z.string().nullable().optional(),
   estimate_min: z.number().int().nullable().optional(),
   project: z.string().max(80).optional().default(""),
+  project_id: z.number().int().positive().nullable().optional(),
   tags: z.string().max(300).optional().default(""),
+  repeat_rule: z.enum(["none", "daily", "weekdays", "weekly", "monthly"]).optional().default("none"),
+  remind_min: z.number().int().min(0).max(10080).nullable().optional(),
 });
 
 export async function GET(req: Request) {
@@ -26,6 +29,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const q = url.searchParams.get("q");
+  const projectId = url.searchParams.get("project");
   const db = getDb();
   let sql = "SELECT * FROM task WHERE 1=1";
   const args: unknown[] = [];
@@ -36,6 +40,10 @@ export async function GET(req: Request) {
   if (q) {
     sql += " AND (title LIKE ? OR note LIKE ?)";
     args.push(`%${q}%`, `%${q}%`);
+  }
+  if (projectId) {
+    sql += " AND project_id = ?";
+    args.push(Number(projectId));
   }
   sql += " ORDER BY CASE status WHEN 'doing' THEN 0 WHEN 'todo' THEN 1 ELSE 2 END, sort, id DESC";
   const rows = db.prepare(sql).all(...(args as (string | number | null)[]));
@@ -53,8 +61,8 @@ export async function POST(req: Request) {
   const db = getDb();
   const info = db
     .prepare(
-      `INSERT INTO task (title,note,status,priority,area,due_date,scheduled_start,scheduled_end,estimate_min,project,tags,done_at,sort,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`
+      `INSERT INTO task (title,note,status,priority,area,due_date,scheduled_start,scheduled_end,estimate_min,project,project_id,tags,repeat_rule,remind_min,done_at,sort,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`
     )
     .run(
       t.title,
@@ -67,7 +75,10 @@ export async function POST(req: Request) {
       t.scheduled_end ?? null,
       t.estimate_min ?? null,
       t.project ?? "",
+      t.project_id ?? null,
       t.tags ?? "",
+      t.repeat_rule ?? "none",
+      t.remind_min ?? null,
       t.status === "done" ? now : null,
       now,
       now

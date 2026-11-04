@@ -1,12 +1,18 @@
 import Link from "next/link";
-import { format } from "date-fns";
-import { getDb, rows, type Task, type Note } from "@/lib/db";
+import { format, parseISO } from "date-fns";
+import { getDb } from "@/lib/db";
+import { search, type Hit } from "@/lib/search";
 import TopBar from "@/components/TopBar";
 import SearchDates from "@/components/SearchDates";
 
-const areaLabel: Record<string, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
-
 export const dynamic = "force-dynamic";
+
+const kindMeta: Record<Hit["kind"], { label: string; href: (h: Hit) => string }> = {
+  task: { label: "任务", href: (h) => `/tasks?focus=${h.id}` },
+  note: { label: "记录", href: (h) => `/notes?id=${h.id}` },
+  event: { label: "日程", href: () => `/calendar` },
+  review: { label: "复盘", href: () => `/review` },
+};
 
 export default async function Page({
   searchParams,
@@ -18,28 +24,14 @@ export default async function Page({
   const type = sp.type || "all";
   const from = sp.from || "";
   const to = sp.to || "";
-  const db = getDb();
 
-  let tasks: Task[] = [];
-  let notes: Note[] = [];
-  if (q && (type === "all" || type === "task")) {
-    let sql = "SELECT * FROM task WHERE (title LIKE ? OR note LIKE ? OR tags LIKE ? OR project LIKE ?)";
-    const args: string[] = [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`];
-    if (from) { sql += " AND substr(COALESCE(due_date, created_at),1,10) >= ?"; args.push(from); }
-    if (to) { sql += " AND substr(COALESCE(due_date, created_at),1,10) <= ?"; args.push(to); }
-    sql += " ORDER BY updated_at DESC LIMIT 50";
-    tasks = rows<Task>(db, sql, ...args);
-  }
-  if (q && (type === "all" || type === "note")) {
-    let sql = "SELECT * FROM note WHERE (title LIKE ? OR content LIKE ? OR tags LIKE ?)";
-    const args: string[] = [`%${q}%`, `%${q}%`, `%${q}%`];
-    if (from) { sql += " AND substr(updated_at,1,10) >= ?"; args.push(from); }
-    if (to) { sql += " AND substr(updated_at,1,10) <= ?"; args.push(to); }
-    sql += " ORDER BY updated_at DESC LIMIT 50";
-    notes = rows<Note>(db, sql, ...args);
-  }
-
-  const total = tasks.length + notes.length;
+  const hits = q ? search(getDb(), q, { kind: type, from, to }) : [];
+  const counts = {
+    task: hits.filter((h) => h.kind === "task").length,
+    note: hits.filter((h) => h.kind === "note").length,
+    event: hits.filter((h) => h.kind === "event").length,
+    review: hits.filter((h) => h.kind === "review").length,
+  };
 
   return (
     <>
@@ -48,16 +40,22 @@ export default async function Page({
         <div>
           <div className="eyebrow">SEARCH · 全文搜索</div>
           <h1>{q ? `“${q}” 的结果` : "找一件事。"}</h1>
-          <p>{q ? `共 ${total} 条（任务 ${tasks.length} · 记录 ${notes.length}）` : "搜索任务与记录，可按类型和时间过滤。"}</p>
+          <p>
+            {q
+              ? `共 ${hits.length} 条（任务 ${counts.task} · 记录 ${counts.note} · 日程 ${counts.event} · 复盘 ${counts.review}）`
+              : "搜索任务、记录、日程和复盘。多个关键词用空格分开，会要求全部命中。"}
+          </p>
         </div>
       </div>
 
       <form className="search-form" action="/search">
-        <input name="q" defaultValue={q} placeholder="关键词…" className="sf-q" />
+        <input name="q" defaultValue={q} placeholder="关键词，空格分隔多个…" className="sf-q" />
         <select name="type" defaultValue={type} className="sf-sel">
           <option value="all">全部类型</option>
           <option value="task">任务</option>
           <option value="note">记录</option>
+          <option value="event">日程</option>
+          <option value="review">复盘</option>
         </select>
         <SearchDates from={from} to={to} />
         <button className="b1" type="submit">搜索</button>
@@ -70,41 +68,39 @@ export default async function Page({
         </div>
       )}
 
-      {q && total === 0 && (
+      {q && hits.length === 0 && (
         <div className="card center-empty" style={{ padding: "54px 20px" }}>
           <b>没有找到</b>
           <p>换个词，或把时间范围放宽一点。</p>
         </div>
       )}
 
-      {tasks.length > 0 && (
-        <section className="card" style={{ padding: 14, marginBottom: 12 }}>
-          <div className="sec-head" style={{ margin: "0 2px 8px" }}><h2>任务</h2><span className="count">{tasks.length}</span></div>
-          <div className="task-list">
-            {tasks.map((t) => (
-              <Link key={t.id} href={`/tasks?focus=${t.id}`} className="task-row" style={{ textDecoration: "none" }}>
-                <span className={`tt ${t.status === "done" ? "done" : ""}`}>{t.title}</span>
-                <span className="meta">
-                  <span>{t.due_date ? format(new Date(t.due_date), "M/d") : "随时"}</span>
-                  <span className="cat">{t.project || areaLabel[t.area] || t.area}</span>
-                  {t.tags && <span>{t.tags}</span>}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {notes.length > 0 && (
+      {hits.length > 0 && (
         <section className="card" style={{ padding: 14 }}>
-          <div className="sec-head" style={{ margin: "0 2px 8px" }}><h2>记录</h2><span className="count">{notes.length}</span></div>
-          {notes.map((n) => (
-            <Link key={n.id} href={`/notes?id=${n.id}`} className="search-note">
-              <b>{n.title || "(无标题)"}</b>
-              <span>{n.source} · {format(new Date(n.updated_at), "yyyy/MM/dd")}{n.tags ? ` · ${n.tags}` : ""}</span>
-              <p className="nr-p">{n.content.slice(0, 90)}</p>
-            </Link>
-          ))}
+          <div className="sec-head" style={{ margin: "0 2px 8px" }}>
+            <h2>结果</h2>
+            <span className="count">{hits.length}</span>
+          </div>
+          {hits.map((h) => {
+            const meta = kindMeta[h.kind];
+            const when = (() => {
+              try {
+                return h.at ? format(parseISO(h.at.slice(0, 19)), "yyyy/MM/dd") : "";
+              } catch {
+                return h.at?.slice(0, 10) ?? "";
+              }
+            })();
+            return (
+              <Link key={`${h.kind}-${h.id}`} href={meta.href(h)} className="search-note">
+                <b>
+                  <span className={`sh-kind k-${h.kind}`}>{meta.label}</span>
+                  {h.title}
+                </b>
+                <span>{when}</span>
+                {h.snippet ? <p className="nr-p">{h.snippet}</p> : null}
+              </Link>
+            );
+          })}
         </section>
       )}
     </>

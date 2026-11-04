@@ -128,5 +128,31 @@ export function useTasks(initial: Task[]) {
     [router, toast]
   );
 
-  return { tasks, setTasks, setStatus, cycle, remove, removeMany, setManyStatus };
+  /**
+   * 在同一个状态列里调整顺序。
+   *
+   * 只改本地顺序、随后把整列的 sort 批量写回去。为什么不用「相邻两条交换」：
+   * 拖到屏幕另一头时要发好几次请求，中间断网就会留下半套顺序。
+   * 一次写完整列，要么全成要么全不成。
+   */
+  const reorder = useCallback(
+    async (status: TaskStatus, orderedIds: number[]) => {
+      const prev = tasks;
+      setTasks((list) =>
+        list.map((t) => (t.status === status ? { ...t, sort: orderedIds.indexOf(t.id) } : t))
+      );
+      try {
+        await Promise.all(
+          orderedIds.map((id, i) => api(`/api/tasks/${id}`, { method: "PATCH", body: { sort: i } }))
+        );
+      } catch (e) {
+        setTasks(prev);
+        toast(errText(e, "顺序没保存上"));
+      }
+      router.refresh();
+    },
+    [tasks, router, toast]
+  );
+
+  return { tasks, setTasks, setStatus, cycle, remove, removeMany, setManyStatus, reorder };
 }

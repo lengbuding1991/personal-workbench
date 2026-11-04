@@ -34,7 +34,7 @@
   },
   "qa": {
     "status": "verified",
-    "round": "第二十轮：版本号 VERSION 文件 + GHCR 只留 2 个 + 手机端适配 + 日期选择器 + 全项目健壮性",
+    "round": "第二十一轮：项目/重复/提醒/搜索/拖拽/统计",
     "verified": [
       "pnpm typecheck 通过、pnpm build 通过（First Load JS 103 kB）",
       "本地 9 个页面全部 200；/nope 返回 404 且为中文页",
@@ -48,10 +48,11 @@
       "残留公开仓库 lengbuding1991/workbench-image 已删除（204）"
     ],
     "unverified": [
-      "真机 iPhone 实测（只在 CDP 390x844 模拟下验证）",
-      "AI 真实调用（ai_key 为空，DeepSeek Key 未填）",
-      "备份恢复演练（备份一直在做，但没真正恢复过一次）",
-      "「立即更新」按钮端到端（点按钮 → watchtower HTTP API → 重建容器）尚未实测"
+      "真机 iPhone / iPad 实测",
+      "AI 真实调用（ai_key 仍为空）",
+      "备份恢复演练（下载 db 后还原）",
+      "「立即更新」按钮端到端",
+      "重复任务在跨月/跨年边界的行为"
     ]
   },
   "deploy": {
@@ -87,5 +88,39 @@
     "version_source": "镜像内 /app/VERSION 文件（环境变量盖不掉）",
     "current_sha": "dcde0dde96b26526130ec886c9741a7f748c95db",
     "current_built": "2026-11-04 22:42"
+  },
+  "features": {
+    "project_system": {
+      "status": "done",
+      "note": "项目 CRUD + 任务挂项目 + 进度页，删项目不删任务"
+    },
+    "repeat": {
+      "status": "done",
+      "note": "任务完成后生成下一次；日程虚拟展开"
+    },
+    "reminders": {
+      "status": "done",
+      "note": "三类提醒 + 提前量；重写修正 UTC 比较错误"
+    },
+    "search": {
+      "status": "done",
+      "note": "放弃 FTS5（中文分词失效），改 LIKE + 多词 AND"
+    },
+    "drag_sort": {
+      "status": "done",
+      "note": "同列内拖拽排序，一次写完整列"
+    },
+    "stats_charts": {
+      "status": "done",
+      "note": "半年热力图 + 30 天趋势 + 项目推进"
+    },
+    "export_db": {
+      "status": "done",
+      "note": "下载完整 workbench.db（先 wal_checkpoint）"
+    },
+    "mobile_nav": {
+      "status": "done",
+      "note": "底部 4 项 + 更多抽屉；修掉手机上进不去设置的 bug"
+    }
   }
 }

@@ -61,6 +61,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# 版本号同时写进一个文件。为什么要多此一举：
+#   环境变量会被 NAS 图形界面里手工加的 WORKBENCH_SHA 覆盖掉，导致
+#   /api/health 报的版本和实际镜像对不上（2026-11-04 真踩过：
+#   镜像里是新 sha，页面却一直显示旧 sha）。写进文件就读不出别的值。
+RUN printf '%s\n%s\n' "${WORKBENCH_SHA}" "${BUILD_DATE}" > /app/VERSION \
+ && chown nextjs:nodejs /app/VERSION
+
 # 入口脚本先以 root 修 /data 的属主，再降到 nextjs 跑应用。
 # 原因：NAS 图形界面建的宿主机目录是 root 的，不改属主首次建库就 EACCES。
 COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

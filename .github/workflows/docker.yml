@@ -59,3 +59,21 @@ jobs:
           build-args: |
             WORKBENCH_SHA=${{ github.sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
+
+      # 清掉旧版本，只留最新 2 个。
+      # 为什么要它：公开包的存储本身不计费（GitHub 对 public packages 免费），
+      # 但每个版本是一份完整快照，堆到 20 个以后翻起来很乱，也不利于万一
+      # 以后政策变化。latest 永远跟着最新那次构建，保留最新 2 个则 latest 必在内。
+      - name: 清理旧镜像版本（只留最新 2 个）
+        # 清理失败不该让整个构建显示红叉：镜像已经推上去了，
+        # 只是没删成旧版本而已。真失败了去手动跑 cleanup-images。
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: personal-workbench
+          package-type: container
+          min-versions-to-keep: 2
+          # 用户命名空间（lengbuding1991）下的包，GITHUB_TOKEN 默认删不动，
+          # 需要 delete:packages 权限的 PAT。没配 PAT 时这一步会失败，
+          # 但不影响镜像本身已经推上去 —— 失败就手动跑 cleanup-images。
+          token: ${{ secrets.PACKAGES_PAT || secrets.GITHUB_TOKEN }}

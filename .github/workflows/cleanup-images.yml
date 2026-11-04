@@ -1,0 +1,39 @@
+# 一次性清理 GHCR 里的旧镜像版本，只留最新若干条。
+#
+# 为什么单独一个文件：
+#   docker.yml 里的清理步骤要等一次完整构建（约 4 分钟）才跑得到，
+#   而现在库里已经堆了 20 个旧版本要先清掉。这个工作流不构建，点一下就跑。
+#
+# 用法：Actions → cleanup-images → Run workflow，keep 填要保留的个数（默认 2）。
+
+name: cleanup-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: 保留最新几个版本
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 说明
+        run: echo "清理后保留最新 ${{ inputs.keep }} 个镜像版本"
+
+      - name: 删除多余版本
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: personal-workbench
+          package-type: container
+          min-versions-to-keep: ${{ inputs.keep }}
+          # 删包需要 delete:packages 权限。GITHUB_TOKEN 通常没有，
+          # 所以在仓库 Settings → Secrets 里加一个 PACKAGES_PAT 指向
+          # 勾了 delete:packages 的 personal access token，这里就会用上它。
+          token: ${{ secrets.PACKAGES_PAT || secrets.GITHUB_TOKEN }}

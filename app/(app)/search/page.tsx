@@ -100,7 +100,7 @@ export default async function Page({
         <section className="card" style={{ padding: 14 }}>
           <div className="sec-head" style={{ margin: "0 2px 8px" }}><h2>记录</h2><span className="count">{notes.length}</span></div>
           {notes.map((n) => (
-            <Link key={n.id} href={`/notes?id=${n.id}`} className="note-row">
+            <Link key={n.id} href={`/notes?id=${n.id}`} className="search-note">
               <b>{n.title || "(无标题)"}</b>
               <span>{n.source} · {format(new Date(n.updated_at), "yyyy/MM/dd")}{n.tags ? ` · ${n.tags}` : ""}</span>
               <p className="nr-p">{n.content.slice(0, 90)}</p>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PenLine, X } from "lucide-react";
 import { uiLock } from "@/lib/ui-lock";
 import { useToast } from "./Toast";
+import { api, errText } from "@/lib/api";
 
 const tags = ["灵感", "工作", "学习", "复盘"];
 
@@ -56,15 +57,14 @@ export default function QuickCapture() {
     setSaving(true);
     try {
       const firstLine = text.trim().split("\n")[0].slice(0, 40);
-      await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: firstLine, content: text, source: tag }),
-      });
+      await api("/api/notes", { method: "POST", body: { title: firstLine, content: text, source: tag } });
       setText("");
       setOpen(false);
       toast("已记下，存在「记录」里");
       router.refresh();
+    } catch (e) {
+      // 以前没有 catch：断网时内容直接消失，等于白写了一行
+      toast(errText(e, "没记上，检查网络后重试"));
     } finally {
       setSaving(false);
     }

@@ -11,6 +11,7 @@ export default function ReminderBell() {
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState<string>("default");
   const seen = useRef<Set<string>>(new Set());
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     try {
@@ -38,6 +39,23 @@ export default function ReminderBell() {
     return () => clearInterval(t);
   }, []);
 
+  // 打开后点外面 / 按 Esc 都能收起。以前没有这段，弹层只能再点一次铃铛才关得掉。
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   const ask = async () => {
     if (typeof Notification === "undefined") return;
     const p = await Notification.requestPermission();
@@ -49,7 +67,7 @@ export default function ReminderBell() {
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={boxRef} style={{ position: "relative" }}>
       <button className="ghost" onClick={() => setOpen((v) => !v)} aria-label="提醒" style={{ position: "relative" }}>
         <Bell size={13} />
         {items.length > 0 && (

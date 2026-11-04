@@ -34,8 +34,11 @@ export async function POST(req: Request) {
   const parsed = Create.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   const t = parsed.data;
-  const info = getDb()
+  const db = getDb();
+  const info = db
     .prepare("INSERT INTO event (title,start_at,end_at,all_day,location,note,created_at) VALUES (?,?,?,?,?,?,?)")
     .run(t.title, t.start_at, t.end_at ?? null, t.all_day ?? 0, t.location ?? "", t.note ?? "", nowIso());
-  return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
+  // 返回完整行（和 PATCH 一致），前端 save 靠 data.event 把它加进本地列表
+  const event = db.prepare("SELECT * FROM event WHERE id=?").get(Number(info.lastInsertRowid));
+  return NextResponse.json({ event: event ? { ...event } : null }, { status: 201 });
 }

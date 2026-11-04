@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { format, isSameDay, isSameMonth } from "date-fns";
-import { Plus, Trash2, Pin, Archive, Eye, Pencil, PenLine } from "lucide-react";
+import { Plus, Trash2, Pin, Archive, Eye, Pencil, PenLine, ChevronLeft } from "lucide-react";
 import { marked } from "marked";
 import type { Note } from "@/lib/db";
 import TopBar from "./TopBar";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
+import { api, errText } from "@/lib/api";
 
 const sources = ["灵感", "工作", "学习", "复盘"];
 
@@ -26,6 +27,9 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
   const [tagText, setTagText] = useState("");
   const [preview, setPreview] = useState(false);
   const [saved, setSaved] = useState<string>("");
+  // 手机上列表和编辑是两块屏：false=看列表，true=写这条。
+  // 桌面上两块并排显示，这个值不起作用（只在 CSS 的窄屏断点里生效）。
+  const [mEditing, setMEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -58,9 +62,11 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     // 只在切换记录时重置，不随 notes 内容变化重跑，避免清掉「已保存」提示
   }, [activeId]);
 
-  const filtered = notes.filter(
-    (n) => Boolean(n.archived) === showArchived && (!q || n.title.includes(q) || n.content.includes(q) || (n.tags || "").includes(q))
-  );
+  const filtered = notes
+    .filter(
+      (n) => Boolean(n.archived) === showArchived && (!q || n.title.includes(q) || n.content.includes(q) || (n.tags || "").includes(q))
+    )
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updated_at).localeCompare(String(a.updated_at)));
 
   const monthCount = useMemo(
     () => notes.filter((n) => !n.archived && isSameMonth(new Date(n.created_at), new Date())).length,
@@ -91,17 +97,21 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     const run = async () => {
       // 从 draft.current 读最新值，而不是闭包里的 state（避免 stale closure）
       const { title: t, content: c, source: s, tags: g } = draft.current;
-      const res = await fetch(`/api/notes/${active.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: t, content: c, source: s, tags: g }),
-      });
-      if (res.ok) {
+      try {
+        await api(`/api/notes/${active.id}`, {
+          method: "PATCH",
+          body: { title: t, content: c, source: s, tags: g },
+        });
         setSaved(format(new Date(), "HH:mm:ss"));
         // 实时更新本地列表，让左侧标题/摘要立即刷新
         setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, title: t, content: c, source: s, tags: g, updated_at: nowIsoLocal() } : n)));
+        return true;
+      } catch (e) {
+        // 以前自动保存失败是静默的：用户以为存上了，其实没有
+        setSaved("");
+        toast(errText(e, "保存失败，检查网络后重试"));
+        return false;
       }
-      return res.ok;
     };
     if (immediate) {
       setSaving(true);
@@ -119,16 +129,19 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
 
   const create = async (seed?: string) => {
     setShowArchived(false);
-    const res = await fetch("/api/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: seed ?? "", content: "", source: "灵感" }),
-    });
-    const data = await res.json();
-    if (data.note) {
-      const note = { ...data.note } as Note;
-      setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
-      setActiveId(note.id);
+    try {
+      const data = await api<{ note: Note }>("/api/notes", {
+        method: "POST",
+        body: { title: seed ?? "", content: "", source: "灵感" },
+      });
+      if (data.note) {
+        const note = { ...data.note } as Note;
+        setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+        setActiveId(note.id);
+        setMEditing(true);
+      }
+    } catch (e) {
+      toast(errText(e, "新建记录失败"));
     }
   };
 
@@ -142,22 +155,26 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     });
     if (!ok) return;
     const snap = { title: active.title, content: active.content, source: active.source, tags: active.tags };
-    await fetch(`/api/notes/${active.id}`, { method: "DELETE" });
+    try {
+      await api(`/api/notes/${active.id}`, { method: "DELETE" });
+    } catch (e) {
+      toast(errText(e, "删除失败，记录还在"));
+      return;
+    }
     setNotes((prev) => prev.filter((n) => n.id !== active.id));
     setActiveId(null);
     toast(`已删除「${snap.title || "无标题记录"}」`, {
       label: "撤销",
       onClick: async () => {
-        const res = await fetch("/api/notes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(snap),
-        });
-        const data = await res.json();
-        if (data.note) {
-          const note = { ...data.note } as Note;
-          setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
-          setActiveId(note.id);
+        try {
+          const data = await api<{ note: Note }>("/api/notes", { method: "POST", body: snap });
+          if (data.note) {
+            const note = { ...data.note } as Note;
+            setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+            setActiveId(note.id);
+          }
+        } catch (e) {
+          toast(errText(e, "撤销失败"));
         }
       },
     });
@@ -165,23 +182,29 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
 
   const togglePin = async () => {
     if (!active) return;
-    await fetch(`/api/notes/${active.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pinned: active.pinned ? 0 : 1 }),
-    });
-    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, pinned: (active.pinned ? 0 : 1) as 0 | 1 } : n)));
+    const next = active.pinned ? 0 : 1;
+    try {
+      await api(`/api/notes/${active.id}`, { method: "PATCH", body: { pinned: next } });
+    } catch (e) {
+      toast(errText(e, "操作失败，请重试"));
+      return;
+    }
+    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, pinned: next as 0 | 1, updated_at: nowIsoLocal() } : n)));
+    toast(next ? "已置顶，排在最上面" : "已取消置顶");
   };
 
   const toggleArchive = async () => {
     if (!active) return;
-    await fetch(`/api/notes/${active.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archived: active.archived ? 0 : 1 }),
-    });
-    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, archived: (active.archived ? 0 : 1) as 0 | 1 } : n)));
+    const next = active.archived ? 0 : 1;
+    try {
+      await api(`/api/notes/${active.id}`, { method: "PATCH", body: { archived: next } });
+    } catch (e) {
+      toast(errText(e, next ? "归档失败" : "取消归档失败"));
+      return;
+    }
+    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, archived: next as 0 | 1 } : n)));
     setActiveId(null);
+    toast(next ? "已归档" : "已取消归档");
   };
 
   const html = useMemo(() => marked.parse(content || "", { async: false, breaks: true }) as string, [content]);
@@ -192,7 +215,7 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
       <TopBar crumb="记录">
         <button className="primary" onClick={() => create()}><Plus size={12} style={{ verticalAlign: -2, marginRight: 3 }} />新记录</button>
       </TopBar>
-      <div className="page-head">
+      <div className={`page-head ${mEditing ? "m-hide" : ""}`}>
         <div>
           <div className="eyebrow">NOTES · 记录灵感</div>
           <h1>先记下来，再慢慢整理。</h1>
@@ -204,13 +227,13 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
         </div>
       </div>
 
-      <div className="notes-grid">
+      <div className={`notes-grid ${mEditing ? "m-edit" : "m-list"}`}>
         <aside className="card notes-side">
           <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索记录、标签…" />
           <div className="notes-list scroll-thin">
             {filtered.map((n) => (
-              <button key={n.id} className={`note-row ${n.id === activeId ? "on" : ""}`} onClick={() => setActiveId(n.id)}>
-                <b>{n.title || "(无标题)"}</b>
+              <button key={n.id} className={`note-row ${n.id === activeId ? "on" : ""}`} onClick={() => { setActiveId(n.id); setMEditing(true); }}>
+                <b>{n.pinned ? <Pin size={10} className="nr-pin" /> : null}{n.title || "(无标题)"}</b>
                 {n.content ? <em>{(n.content || "").replace(/[#*`>\-]/g, "").replace(/\s+/g, " ").trim().slice(0, 44)}</em> : null}
                 <span>{n.source} · {format(new Date(n.updated_at), "MM/dd HH:mm")}{n.tags ? ` · ${n.tags}` : ""}</span>
               </button>
@@ -268,6 +291,9 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
         </aside>
 
         <section className="card note-editor">
+          <button className="note-back" onClick={() => setMEditing(false)}>
+            <ChevronLeft size={15} /> 全部记录
+          </button>
           {active ? (
             <>
               <input

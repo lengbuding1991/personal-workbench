@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS task (
 );
 CREATE INDEX IF NOT EXISTS idx_task_status ON task(status);
 CREATE INDEX IF NOT EXISTS idx_task_due ON task(due_date);
+CREATE INDEX IF NOT EXISTS idx_task_sched ON task(scheduled_start);
+CREATE INDEX IF NOT EXISTS idx_task_done ON task(done_at);
 
 CREATE TABLE IF NOT EXISTS event (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -283,6 +285,10 @@ export function getDb(): DatabaseSync {
   ensureColumn(db, "note", "tags", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "note", "archived", "INTEGER NOT NULL DEFAULT 0");
 
+  // 依赖上面迁移补的列，所以不能写进 SCHEMA 里（全新库建索引时会找不到 archived 列）
+  db.exec("CREATE INDEX IF NOT EXISTS idx_note_pin_upd ON note(pinned, updated_at);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_note_arch ON note(archived);");
+
   const count = (db.prepare("SELECT COUNT(*) AS n FROM task").get() as { n: number }).n;
   const initialized = (db.prepare("SELECT value FROM setting WHERE key = 'initialized'").get() as { value?: string } | undefined)?.value;
   // WORKBENCH_SEED=0 让线上首启是干净的空库（不带示例任务）
@@ -293,8 +299,36 @@ export function getDb(): DatabaseSync {
   return db;
 }
 
+/**
+ * 把 `node:sqlite` 返回的 null-prototype 行对象转成普通对象。
+ *
+ * 为什么必须转：把 null-prototype 对象直接传给客户端组件，React 会抛
+ * `Only plain objects, and a few built-ins, can be passed to Client Components`。
+ * 以前是每个页面各自写 `.map((r) => ({ ...r }))`，漏一处就炸，这里统一收口。
+ */
+export function plain<T>(row: unknown): T {
+  return { ...(row as object) } as T;
+}
+
+/** 查询多行并转成普通对象数组。 */
+export function rows<T>(db: DatabaseSync, sql: string, ...args: (string | number | null)[]): T[] {
+  return (db.prepare(sql).all(...args) as unknown[]).map((r) => plain<T>(r));
+}
+
+/** 查询单行并转成普通对象（没有结果返回 undefined）。 */
+export function row<T>(db: DatabaseSync, sql: string, ...args: (string | number | null)[]): T | undefined {
+  const r = db.prepare(sql).get(...args);
+  return r === undefined ? undefined : plain<T>(r);
+}
+
 export function nowIso() {
   return formatISO(new Date(), { representation: "complete" });
+}
+
+/** 本地日期 yyyy-MM-dd（不用 toISOString，避免 UTC 差 8 小时导致凌晨归到前一天）。 */
+export function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function getSetting(key: string, fallback = "") {
@@ -309,7 +343,7 @@ export function setSetting(key: string, value: string) {
 export function ensureBackup() {
   try {
     const db = getDb();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
     if (getSetting("last_backup", "") === today) return;
     const dir = path.join(process.env.WORKBENCH_DATA_DIR || path.join(process.cwd(), "data"), "backups");
     fs.mkdirSync(dir, { recursive: true });

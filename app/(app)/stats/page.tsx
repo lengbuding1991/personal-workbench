@@ -1,15 +1,15 @@
 import { format, isSameDay, parseISO, subDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { getDb, type Task, type Note } from "@/lib/db";
+import { getDb, rows, type Task, type Note } from "@/lib/db";
 import StatsApp from "@/components/StatsApp";
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
   const db = getDb();
-  const tasks = (db.prepare("SELECT * FROM task").all() as Task[]).map((r) => ({ ...r }));
-  const notes = (db.prepare("SELECT * FROM note").all() as Note[]).map((r) => ({ ...r }));
-  const reviews = db.prepare("SELECT date FROM review").all() as { date: string }[];
+  const tasks = rows<Task>(db, "SELECT * FROM task");
+  const notes = rows<Note>(db, "SELECT * FROM note");
+  const reviews = rows<{ date: string }>(db, "SELECT date FROM review");
   const done = tasks.filter((t) => t.status === "done");
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => subDays(today, 6 - i));

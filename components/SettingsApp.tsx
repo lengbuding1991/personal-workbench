@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Download, Check, Upload, RefreshCw } from "lucide-react";
 import TopBar from "./TopBar";
 import { useConfirm } from "./Confirm";
+import { api, errText } from "@/lib/api";
 
 export default function SettingsApp({
   initial,
@@ -44,19 +45,12 @@ export default function SettingsApp({
     setPwBusy(true);
     setPwMsg("");
     try {
-      const res = await fetch("/api/auth", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: curPw, password: newPw }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setPwMsg("已更新，这台设备不用重新登录");
-        setCurPw("");
-        setNewPw("");
-      } else {
-        setPwMsg(d.error || "修改失败");
-      }
+      await api("/api/auth", { method: "PATCH", body: { current: curPw, password: newPw } });
+      setPwMsg("已更新，这台设备不用重新登录");
+      setCurPw("");
+      setNewPw("");
+    } catch (e) {
+      setPwMsg(errText(e, "修改失败"));
     } finally {
       setPwBusy(false);
     }
@@ -66,19 +60,15 @@ export default function SettingsApp({
     setSaving(true);
     setMsg("");
     try {
-      const res = await fetch("/api/settings", {
+      await api("/api/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_name: name, ai_base_url: base, ai_model: model, ...(key ? { ai_key: key } : {}) }),
+        body: { user_name: name, ai_base_url: base, ai_model: model, ...(key ? { ai_key: key } : {}) },
       });
-      if (res.ok) {
-        setMsg("已保存");
-        setKey("");
-        router.refresh();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setMsg(d.error || "保存失败");
-      }
+      setMsg("已保存");
+      setKey("");
+      router.refresh();
+    } catch (e) {
+      setMsg(errText(e, "保存失败"));
     } finally {
       setSaving(false);
     }
@@ -88,15 +78,10 @@ export default function SettingsApp({
     setTesting(true);
     setTestMsg("");
     try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test" }),
-      });
-      const d = await res.json();
-      setTestMsg(res.ok ? `连接成功${d.models?.length ? "：" + d.models.join(", ") : ""}` : d.error || "连接失败");
-    } catch {
-      setTestMsg("网络异常");
+      const d = await api<{ models?: string[] }>("/api/ai", { method: "POST", body: { action: "test" } });
+      setTestMsg(`连接成功${d.models?.length ? "：" + d.models.join(", ") : ""}`);
+    } catch (e) {
+      setTestMsg(errText(e, "网络异常"));
     } finally {
       setTesting(false);
     }
@@ -114,12 +99,11 @@ export default function SettingsApp({
     if (!ok) return;
     setClearing(true);
     try {
-      const res = await fetch("/api/reset", { method: "POST" });
-      if (!res.ok) throw new Error("清空失败");
+      await api("/api/reset", { method: "POST" });
       setMsg("已清空，可以从零开始");
       router.refresh();
-    } catch {
-      setMsg("清空失败，请重试");
+    } catch (e) {
+      setMsg(errText(e, "清空失败，请重试"));
     } finally {
       setClearing(false);
     }
@@ -130,16 +114,11 @@ export default function SettingsApp({
     setMsg("");
     try {
       const text = await file.text();
-      const res = await fetch("/api/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: text,
-      });
-      const d = await res.json();
-      if (res.ok) {
-        setMsg(`已导入 ${d.imported} 条`);
-        router.refresh();
-      } else setMsg(d.error || "导入失败");
+      const d = await api<{ imported: number }>("/api/import", { method: "POST", body: JSON.parse(text) });
+      setMsg(`已导入 ${d.imported} 条`);
+      router.refresh();
+    } catch (e) {
+      setMsg(errText(e, "导入失败"));
     } finally {
       setImporting(false);
     }
@@ -149,15 +128,10 @@ export default function SettingsApp({
     setUpdating(true);
     setUpdMsg("");
     try {
-      const res = await fetch("/api/update", { method: "POST" });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setUpdMsg(d.message || "已触发更新，稍等片刻后刷新页面");
-      } else {
-        setUpdMsg(d.error || "触发失败，请重试");
-      }
-    } catch {
-      setUpdMsg("网络异常，没叫动更新");
+      const d = await api<{ message?: string }>("/api/update", { method: "POST" });
+      setUpdMsg(d.message || "已触发更新，稍等片刻后刷新页面");
+    } catch (e) {
+      setUpdMsg(errText(e, "网络异常，没叫动更新"));
     } finally {
       setUpdating(false);
     }

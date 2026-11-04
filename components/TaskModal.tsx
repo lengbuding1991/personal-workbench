@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, Area, Priority, TaskStatus } from "@/lib/db";
+import DateField from "./DateField";
 import { useConfirm } from "./Confirm";
+import { useToast } from "./Toast";
+import { api, errText } from "@/lib/api";
 
 const areas: { v: Area; label: string }[] = [
   { v: "work", label: "工作" },
@@ -26,6 +29,8 @@ export default function TaskModal({
 }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const toast = useToast();
+  const [err, setErr] = useState("");
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [area, setArea] = useState<Area>("work");
@@ -41,6 +46,7 @@ export default function TaskModal({
 
   useEffect(() => {
     if (!open) return;
+    setErr("");
     setTitle(task?.title ?? "");
     setNote(task?.note ?? "");
     setArea(task?.area ?? "work");
@@ -73,13 +79,16 @@ export default function TaskModal({
       status,
     };
     try {
-      await fetch(task ? `/api/tasks/${task.id}` : "/api/tasks", {
+      await api(task ? `/api/tasks/${task.id}` : "/api/tasks", {
         method: task ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       });
+      toast(task ? "任务已更新" : "任务已添加");
       router.refresh();
       onClose();
+    } catch (e) {
+      // 以前这里没有 catch：保存失败时弹窗直接关掉，用户以为存上了
+      setErr(errText(e, "保存失败，请重试"));
     } finally {
       setSaving(false);
     }
@@ -94,12 +103,16 @@ export default function TaskModal({
       danger: true,
     });
     if (!ok) return;
-    onClose();
-    if (onDelete) await onDelete(task);
-    else {
-      await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
-      router.refresh();
+    try {
+      if (onDelete) await onDelete(task);
+      else await api(`/api/tasks/${task.id}`, { method: "DELETE" });
+    } catch (e) {
+      // 以前删失败也会关弹窗，看着像删掉了
+      setErr(errText(e, "删除失败，任务还在"));
+      return;
     }
+    onClose();
+    if (!onDelete) router.refresh();
   };
 
   return (
@@ -165,7 +178,7 @@ export default function TaskModal({
           <div className="two">
             <label>
               截止日期
-              <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+              <DateField value={due} onChange={setDue} />
             </label>
             <label>
               预计分钟
@@ -175,14 +188,15 @@ export default function TaskModal({
           <div className="two">
             <label>
               安排开始
-              <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+              <DateField mode="datetime" value={start} onChange={setStart} />
             </label>
             <label>
               安排结束
-              <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <DateField mode="datetime" value={end} onChange={setEnd} />
             </label>
           </div>
         </div>
+        {err ? <div className="form-err">{err}</div> : null}
         <div className="acts">
           {task && <button className="b2 danger" onClick={remove}>删除</button>}
           <button className="b2" onClick={onClose}>取消</button>

@@ -505,6 +505,7 @@ body.dragging{cursor:grabbing;user-select:none}
 .note-row:hover{background:#F6FBFE}
 .note-row.on{background:var(--acc-soft);border-color:var(--acc-line)}
 .note-row b{display:block;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-row b .nr-pin{color:#4FC3BC;vertical-align:-1px;margin-right:4px}
 .note-row em{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-style:normal;font-size:10px;color:#8FA2B3;line-height:1.5;margin-top:3px}
 .notes-filler{flex:1;min-height:96px;display:flex;padding:4px 0 10px}
 .nf-hint{flex:1;width:100%;border:1px dashed #DDEBF4;border-radius:16px;background:linear-gradient(180deg,#FBFDFF,#F6FBFE);
@@ -516,6 +517,7 @@ body.dragging{cursor:grabbing;user-select:none}
 .nf-seeds .chip{font-size:9.5px;padding:5px 6px;justify-content:center;background:#fff;border:1px solid #E6F1F9;border-radius:9px;color:#7C93A6}
 .nf-seeds .chip:hover{border-color:#BFE6E2;color:#3E9C96;background:#F4FDFC}
 .note-row span{display:block;font-size:8.5px;color:#A8B8C6;margin-top:2px}
+.note-back{display:none}
 .note-editor{padding:18px 22px;min-height:0;height:100%;display:flex;flex-direction:column}
 .note-editor input.title{width:100%;border:0;background:transparent;font-size:21px;font-weight:700;letter-spacing:-.02em;outline:none;padding:0;margin-bottom:6px}
 .note-editor .sub{font-size:9px;color:#A8B8C6;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -713,6 +715,19 @@ body.dragging{cursor:grabbing;user-select:none}
   .notes-list{flex:0 0 auto;height:auto;min-height:0;overflow:visible}
   .notes-foot{margin-top:10px}
   .note-editor{height:auto;min-height:60vh}
+
+  /* 窄屏上「列表 + 随手记 + 编辑器」竖着摞会拉到两屏以外，
+     编辑器几乎看不到。改成备忘录那种两块屏：列表 ⇄ 编辑。 */
+  .notes-grid.m-list .note-editor{display:none}
+  .notes-grid.m-edit .notes-side{display:none}
+  .notes-grid.m-edit .note-editor{min-height:calc(100vh - 190px);padding-bottom:14px}
+  /* 写的时候不需要大标题和「记录/归档」，把整屏让给正文 */
+  .page-head.m-hide{display:none}
+  .note-back{display:inline-flex;align-items:center;gap:3px;border:0;background:none;
+    color:#4FA8B8;font-size:12px;font-weight:600;padding:0 0 10px;cursor:pointer}
+  .note-back:active{opacity:.6}
+  .notes-filler{min-height:0;padding:2px 0 6px}
+  .nf-hint{padding:14px 12px}
 }
 @media (max-width:640px){
   .side{left:0;right:0;top:auto;bottom:0;width:auto;height:60px;flex-direction:row;align-items:center;padding:5px 6px;border-right:0;border-top:1px solid var(--line);
@@ -754,12 +769,21 @@ body.dragging{cursor:grabbing;user-select:none}
 
   /* 移动端日历：周视图换成「每天一卡」，桌面时间轴隐藏 */
   .cal2-card .cal2-scroll{display:none}
-  .cal2-mweek{display:flex}
+  /* 提高特异性，压过文件后面基础规则里的 .cal2-mweek{display:none} */
+  .cal2-card .cal2-mweek{display:flex}
   .cal2-card .cal2-foot{display:none}
   .day-side{position:static}
-  /* 弹窗（新日程等）贴底，别超出边框 */
-  .modal{padding:0;align-items:flex-end;background:rgba(23,52,80,.32)}
-  .sheet{width:100%;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  /* 弹窗（新日程/任务等）：居中，限制高度，表单滚动、按钮固定底部 */
+  .modal{padding:14px;align-items:center;background:rgba(23,52,80,.32)}
+  .sheet{width:100%;border-radius:20px;padding:20px 18px 0;max-height:88vh;
+    display:flex;flex-direction:column;overflow:hidden}
+  .sheet .x{top:16px;right:16px}
+  .sheet .form{overflow:auto;padding-bottom:8px;margin-right:-4px;padding-right:4px}
+  .sheet .acts{flex:none;display:flex;gap:8px;margin:10px -18px 0;padding:12px 18px;
+    background:#fff;border-top:1px solid var(--line)}
+  .sheet .acts .b1{flex:1;padding:12px 16px;font-size:14px;border-radius:12px}
+  .sheet .acts .b2{padding:12px 16px;font-size:13px;border-radius:12px}
+  .sheet .acts .b2.danger{flex:0 0 auto}
   .two{grid-template-columns:1fr}
 }
 
@@ -945,7 +969,17 @@ body.dragging{cursor:grabbing;user-select:none}
 .mw-ev span{flex:none;font-family:var(--mono);font-size:10px;color:#5E7183}
 .mw-ev b{flex:1;min-width:0;font-size:11px;color:#2C4257;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mw-ev em{flex:none;font-style:normal;font-size:8.5px;color:#A8B8C6}
-.mw-empty{font-size:10px;color:#C2D0DB;padding:6px 2px 2px}
+.mw-empty{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  border:1.5px dashed #DDE9F3;border-radius:12px;background:linear-gradient(180deg,#FBFDFF,#F5FAFE);
+  padding:18px 10px;color:#B6C8D6;cursor:pointer;transition:.15s}
+.mw-empty:active{background:rgba(58,200,194,.08);border-color:#9FE0DC}
+.mw-empty svg{color:#C7D8E4}
+.mw-empty span{font-size:11px;color:#8FA2B3;font-weight:600}
+.mw-empty em{font-style:normal;font-size:9px;color:#B6C8D6}
+/* 周视图里 7 天都铺大空卡片太占纵向空间，压缩成一行 */
+.cal2-mweek.week .mw-empty{flex-direction:row;gap:7px;padding:11px 12px;border-radius:10px}
+.cal2-mweek.week .mw-empty em{display:none}
+.cal2-mweek.week .mw-empty svg{width:13px;height:13px}
 
 .day-side{position:sticky;top:14px;align-self:start}
 .ds-sec{font-size:9.5px;color:#A8B8C6;letter-spacing:.06em;margin:14px 2px 6px;padding-top:12px;border-top:1px dashed #E8F1F8}
@@ -1065,3 +1099,100 @@ body.dragging{cursor:grabbing;user-select:none}
   animation:nav-run 1.1s ease-in-out infinite;opacity:0;transition:opacity .2s}
 .nav-progress.on{opacity:1}
 @keyframes nav-run{0%{background-position:-40% 0}100%{background-position:140% 0}}
+
+/* ---------- 自定义日期选择器（替换原生 input[type=date] / datetime-local） ---------- */
+.df-field{display:inline-flex;align-items:center;gap:8px;min-height:37px;padding:8px 11px;
+  background:#F8FBFE;border:1px solid var(--line);border-radius:11px;font-size:12px;color:#4E6C86;
+  cursor:pointer;outline:none;text-align:left;width:100%;transition:.15s}
+.df-field:hover{border-color:#CFE4F4;background:#FBFDFF}
+.df-field:focus-visible{border-color:var(--acc-line);background:#fff;box-shadow:0 0 0 3px rgba(58,200,194,.09)}
+.df-field svg{flex:none;color:#A8B8C6}
+.df-field span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.df-field:not(.has) span{color:#A8B8C6}
+.df-clear{font-style:normal;font-size:14px;line-height:1;color:#B6C8D6;flex:none}
+.df-clear:hover{color:#E0685F}
+
+.df-backdrop{position:fixed;inset:0;z-index:98;background:rgba(23,52,80,.22);backdrop-filter:blur(2px)}
+/* 桌面端浮层 */
+.df-pop{position:fixed;z-index:99;width:304px;background:#fff;border:1px solid #E7F0F8;border-radius:16px;
+  box-shadow:0 20px 56px rgba(23,52,80,.16);padding:14px 16px 12px;animation:pin .16s ease both}
+.df-dp .rdp-root{--rdp-accent-color:var(--acc-d);--rdp-accent-background-color:var(--acc-soft);
+  --rdp-day-height:38px;--rdp-day-width:38px;
+  --rdp-day_button-width:32px;--rdp-day_button-height:32px;
+  --rdp-day_button-border-radius:999px;--rdp-day_button-border:0;
+  --rdp-selected-border:none;--rdp-outside-opacity:.28;
+  --rdp-nav_button-height:26px;--rdp-nav_button-width:26px;--rdp-nav-height:30px;
+  font-size:13px}
+.df-dp .rdp-months{justify-content:center}
+.df-dp .rdp-month{width:100%}
+.df-dp .rdp-month_caption{font-size:13px;font-weight:600;color:#2C4257;letter-spacing:.01em}
+.df-dp .rdp-month_grid{width:100%;border-collapse:collapse;table-layout:fixed}
+.df-dp .rdp-weekday{font-size:10px;color:#A9BAC9;font-weight:600;padding:9px 0 7px;letter-spacing:.06em}
+.df-dp .rdp-day{padding:1px 0;height:38px}
+.df-dp .rdp-day_button{margin:0 auto;font-size:13px;color:#3A4D5F;font-variant-numeric:tabular-nums;
+  transition:background .12s,color .12s}
+.df-dp .rdp-day_button:hover{background:#F2F8FD}
+.df-dp .rdp-today:not(.rdp-outside) .rdp-day_button{color:var(--acc-d);font-weight:700}
+.df-dp .rdp-selected{font-size:13px;font-weight:400}
+.df-dp .rdp-selected .rdp-day_button{background:linear-gradient(140deg,#4FD3C8,#33A9D6);color:#fff;
+  font-weight:600;box-shadow:0 4px 10px rgba(58,200,194,.28)}
+.df-dp .rdp-chevron{fill:#8FA2B3}
+.df-dp .rdp-button_previous,.df-dp .rdp-button_next{border-radius:8px}
+.df-dp .rdp-button_previous:hover,.df-dp .rdp-button_next:hover{background:#F2F8FD}
+
+/* 时间（轻量下拉，去掉重边框） */
+.df-time{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid #F0F6FB}
+.df-time-label{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8FA2B3;font-weight:600;letter-spacing:.02em}
+.df-time select{flex:1;height:34px;border:1px solid transparent;background:#F5FAFD;border-radius:9px;
+  font-family:var(--mono);font-size:13px;color:#3A4D5F;padding:0 8px;cursor:pointer;outline:none;
+  transition:border-color .12s,background .12s}
+.df-time select:hover{background:#EFF8FD}
+.df-time select:focus{border-color:var(--acc-line);background:#fff}
+.df-colon{color:#C3D3DF;font-family:var(--mono);font-size:14px}
+
+.df-foot{display:flex;align-items:center;gap:8px;margin-top:12px}
+.df-foot .today-btn{margin-right:auto;border:0;background:none;padding:6px 2px;font-size:12px;
+  color:#5FA9B8;font-weight:600;cursor:pointer}
+.df-foot .today-btn:hover{color:#17A8A4}
+.df-foot .cancel-btn{border:1px solid var(--line);border-radius:9px;padding:6px 14px;font-size:12px;
+  color:#7C8F9F;background:#fff;cursor:pointer}
+.df-foot .cancel-btn:hover{background:#F9FCFF;border-color:#CFE4F4}
+.df-foot .ok{border:0;border-radius:9px;padding:7px 16px;font-size:12px;font-weight:600;color:#fff;
+  background:linear-gradient(140deg,#4FD3C8,#33A9D6);cursor:pointer;box-shadow:0 4px 10px rgba(58,200,194,.24)}
+.df-foot .ok:hover{filter:brightness(1.03)}
+
+/* 手机端底部抽屉（iOS 原生风格） */
+.df-sheet{position:fixed;left:0;right:0;bottom:0;z-index:99;background:#fff;border-radius:22px 22px 0 0;
+  box-shadow:0 -12px 40px rgba(23,52,80,.18);padding:0 20px calc(18px + env(safe-area-inset-bottom));
+  animation:sheetUp .26s cubic-bezier(.22,1,.36,1) both}
+.df-sheet-bar{display:flex;align-items:center;justify-content:space-between;padding:16px 2px 10px}
+.df-sheet-bar b{font-size:15px;font-weight:600;color:#2C4257}
+.df-sheet-bar button{font-size:15px;background:none;border:0;cursor:pointer;padding:2px 4px}
+.df-sheet-bar button.cancel{color:#8FA2B3}
+.df-sheet-bar button.ok{color:#17A8A4;font-weight:600}
+.df-sheet-bar .ok-placeholder{width:36px}
+.df-sheet-body{padding-top:4px}
+.df-sheet .rdp-root{--rdp-day-height:44px;--rdp-day-width:44px;
+  --rdp-day_button-width:38px;--rdp-day_button-height:38px}
+.df-sheet .df-time{margin-top:14px;padding-top:14px}
+.df-sheet .df-foot .ok,.df-sheet .df-foot .cancel-btn{display:none}
+.df-sheet .df-foot{margin-top:10px}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+
+/* ============ 错误边界 ============ */
+.err-page{display:flex;align-items:center;justify-content:center;min-height:60vh;padding:24px}
+.err-card{max-width:420px;text-align:center;background:var(--card);border:1px solid var(--line);
+  border-radius:18px;padding:34px 28px;box-shadow:0 16px 48px rgba(37,84,133,.08)}
+.err-icon{width:52px;height:52px;margin:0 auto 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+  color:#C9793F;background:linear-gradient(140deg,#FDF1E4,#FBE6D4)}
+.err-card h1{font-size:18px;font-weight:700;color:var(--ink);margin:0 0 8px}
+.err-card p{font-size:12.5px;color:var(--muted);line-height:1.7;margin:0 0 14px}
+.err-code{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--dim);
+  background:var(--card2);border:1px solid var(--line);border-radius:7px;padding:4px 8px;margin-bottom:16px}
+.err-acts{display:flex;gap:9px;justify-content:center}
+.err-acts .b1,.err-acts .b2{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.err-acts .b2{color:var(--muted)}
+.err-icon.nf{color:#5A9BC9;background:linear-gradient(140deg,#EAF4FC,#DBEBF8)}
+.form-err{margin:2px 0 0;padding:9px 12px;border-radius:10px;font-size:11.5px;line-height:1.5;
+  color:#B4483C;background:#FDF0EE;border:1px solid #F8DCD7}

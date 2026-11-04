@@ -7,8 +7,10 @@ import { zhCN } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, Plus, Trash2 } from "lucide-react";
 import type { EventRow, Task } from "@/lib/db";
 import TopBar from "./TopBar";
+import DateField from "./DateField";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
+import { api, errText } from "@/lib/api";
 
 type Draft = {
   mode: "new" | "edit";
@@ -91,6 +93,7 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const [selected, setSelected] = useState(new Date());
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
   const [dragTip, setDragTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [hover, setHover] = useState<{ day: string; mins: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -322,6 +325,7 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const save = async () => {
     if (!draft || !draft.title.trim() || !draft.start) return;
     setSaving(true);
+    setErr("");
     const payload = {
       title: draft.title.trim(),
       start_at: draft.start,
@@ -332,26 +336,19 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
     };
     try {
       if (draft.mode === "edit" && draft.id) {
-        const res = await fetch(`/api/events/${draft.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
+        const data = await api<{ event: EventRow }>(`/api/events/${draft.id}`, { method: "PATCH", body: payload });
         if (data.event) setList((l) => l.map((x) => (x.id === draft.id ? { ...x, ...data.event } : x)));
         toast("日程已更新");
       } else {
-        const res = await fetch("/api/events", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
+        const data = await api<{ event: EventRow }>("/api/events", { method: "POST", body: payload });
         if (data.event) setList((l) => [...l, { ...data.event }]);
         toast(`「${payload.title}」已加到日历`);
       }
       setDraft(null);
       router.refresh();
+    } catch (e) {
+      // 以前这里没有 catch：保存失败弹窗照关，用户以为加上了
+      setErr(errText(e, "保存失败，请重试"));
     } finally {
       setSaving(false);
     }
@@ -365,21 +362,28 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
       danger: true,
     });
     if (!ok) return;
+    try {
+      await api(`/api/events/${e.id}`, { method: "DELETE" });
+    } catch (err) {
+      toast(errText(err, "删除失败，日程还在"));
+      return;
+    }
     setList((l) => l.filter((x) => x.id !== e.id));
     setDraft(null);
-    await fetch(`/api/events/${e.id}`, { method: "DELETE" });
     router.refresh();
     toast(`已删除「${e.title}」`, {
       label: "撤销",
       onClick: async () => {
-        const res = await fetch("/api/events", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: e.title, start_at: e.start_at, end_at: e.end_at, location: e.location, all_day: e.all_day }),
-        });
-        const data = await res.json();
-        if (data.event) setList((l) => [...l, { ...data.event }]);
-        router.refresh();
+        try {
+          const data = await api<{ event: EventRow }>("/api/events", {
+            method: "POST",
+            body: { title: e.title, start_at: e.start_at, end_at: e.end_at, location: e.location, all_day: e.all_day },
+          });
+          if (data.event) setList((l) => [...l, { ...data.event }]);
+          router.refresh();
+        } catch (err) {
+          toast(errText(err, "撤销失败"));
+        }
       },
     });
   };
@@ -468,7 +472,7 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
       <div className={view === "day" ? "cal2-daywrap" : ""}>
       <section className="card cal2-card">
         {/* 移动端周视图：每天一卡的日程列表（桌面端隐藏） */}
-        <div className="cal2-mweek">
+        <div className={`cal2-mweek ${view === "week" ? "week" : ""}`}>
           {days.map((d) => {
             const key = format(d, "yyyy-MM-dd");
             const evs = timedOf(key);
@@ -500,7 +504,13 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
                     <span>任务</span><b>{t.title}</b>
                   </div>
                 ))}
-                {!evs.length && !allday.length && !tks.length && <div className="mw-empty">这天空着，点右上角 + 安排</div>}
+                {!evs.length && !allday.length && !tks.length && (
+                  <button className="mw-empty" onClick={() => openNew(d)}>
+                    <Plus size={16} />
+                    <span>这天空着</span>
+                    <em>点这里安排点什么</em>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -756,11 +766,11 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
               <div className="two">
                 <label>
                   开始
-                  <input type="datetime-local" value={draft.start} onChange={(e) => setDraft({ ...draft, start: e.target.value })} />
+                  <DateField mode="datetime" value={draft.start} onChange={(v) => setDraft({ ...draft, start: v })} />
                 </label>
                 <label>
                   结束
-                  <input type="datetime-local" value={draft.end} onChange={(e) => setDraft({ ...draft, end: e.target.value })} />
+                  <DateField mode="datetime" value={draft.end} onChange={(v) => setDraft({ ...draft, end: v })} />
                 </label>
               </div>
               <label>
@@ -772,6 +782,7 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
                 <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="可选" />
               </label>
             </div>
+            {err ? <div className="form-err">{err}</div> : null}
             <div className="acts">
               {draft.mode === "edit" && (
                 <button

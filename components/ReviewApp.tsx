@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, errText } from "@/lib/api";
 import { format } from "date-fns";
 import { Sparkles } from "lucide-react";
 import type { Review } from "@/lib/db";
@@ -52,15 +53,14 @@ export default function ReviewApp({
     setSaving(true);
     setMsg("");
     try {
-      const res = await fetch("/api/reviews", {
+      await api("/api/reviews", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateKey, type, did, stuck, tomorrow, summary }),
+        body: { date: dateKey, type, did, stuck, tomorrow, summary },
       });
-      if (res.ok) {
-        setMsg("已保存");
-        router.refresh();
-      } else setMsg("保存失败");
+      setMsg("已保存");
+      router.refresh();
+    } catch (e) {
+      setMsg(errText(e, "保存失败，请重试"));
     } finally {
       setSaving(false);
     }
@@ -70,19 +70,16 @@ export default function ReviewApp({
     setDrafting(true);
     setMsg("");
     try {
-      const res = await fetch("/api/ai", {
+      const data = await api<{ did?: string; stuck?: string; tomorrow?: string }>("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "review", date: dateKey, type }),
+        body: { action: "review", date: dateKey, type },
       });
-      const data = await res.json();
-      if (!res.ok) setMsg(data.error || "AI 起稿失败");
-      else {
-        if (data.did) setDid(data.did);
-        if (data.stuck) setStuck(data.stuck);
-        if (data.tomorrow) setTomorrow(data.tomorrow);
-        setMsg("AI 已起稿，改完记得保存");
-      }
+      if (data.did) setDid(data.did);
+      if (data.stuck) setStuck(data.stuck);
+      if (data.tomorrow) setTomorrow(data.tomorrow);
+      setMsg("AI 已起稿，改完记得保存");
+    } catch (e) {
+      setMsg(errText(e, "AI 起稿失败"));
     } finally {
       setDrafting(false);
     }

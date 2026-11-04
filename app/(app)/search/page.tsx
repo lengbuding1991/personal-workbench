@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { getDb, type Task, type Note } from "@/lib/db";
+import { getDb, rows, type Task, type Note } from "@/lib/db";
 import TopBar from "@/components/TopBar";
+import SearchDates from "@/components/SearchDates";
 
 const areaLabel: Record<string, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
 
@@ -27,7 +28,7 @@ export default async function Page({
     if (from) { sql += " AND substr(COALESCE(due_date, created_at),1,10) >= ?"; args.push(from); }
     if (to) { sql += " AND substr(COALESCE(due_date, created_at),1,10) <= ?"; args.push(to); }
     sql += " ORDER BY updated_at DESC LIMIT 50";
-    tasks = (db.prepare(sql).all(...args) as Task[]).map((r) => ({ ...r }));
+    tasks = rows<Task>(db, sql, ...args);
   }
   if (q && (type === "all" || type === "note")) {
     let sql = "SELECT * FROM note WHERE (title LIKE ? OR content LIKE ? OR tags LIKE ?)";
@@ -35,7 +36,7 @@ export default async function Page({
     if (from) { sql += " AND substr(updated_at,1,10) >= ?"; args.push(from); }
     if (to) { sql += " AND substr(updated_at,1,10) <= ?"; args.push(to); }
     sql += " ORDER BY updated_at DESC LIMIT 50";
-    notes = (db.prepare(sql).all(...args) as Note[]).map((r) => ({ ...r }));
+    notes = rows<Note>(db, sql, ...args);
   }
 
   const total = tasks.length + notes.length;
@@ -58,9 +59,7 @@ export default async function Page({
           <option value="task">任务</option>
           <option value="note">记录</option>
         </select>
-        <input type="date" name="from" defaultValue={from} className="sf-date" />
-        <span className="sf-sep">至</span>
-        <input type="date" name="to" defaultValue={to} className="sf-date" />
+        <SearchDates from={from} to={to} />
         <button className="b1" type="submit">搜索</button>
       </form>
 

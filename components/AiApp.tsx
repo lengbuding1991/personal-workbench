@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Wand2, Sparkles, ArrowRight } from "lucide-react";
 import TopBar from "./TopBar";
+import { api, errText } from "@/lib/api";
 
 type Draft = { title: string; area: "work" | "side" | "media" | "study" | "life"; priority: "high" | "med" | "low"; due_date?: string | null };
 
@@ -24,23 +25,14 @@ export default function AiApp({ aiReady, settingsHref, reviewHref }: { aiReady: 
     setLoading(true);
     setMsg("");
     try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "parse", text }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg(data.error || "拆解失败");
-        setDrafts([]);
-      } else {
-        const list: Draft[] = (data.tasks || []).slice(0, 8);
-        setDrafts(list);
-        setPicked(list.map(() => true));
-        setMsg(list.length ? `拆出 ${list.length} 件，勾选后入库。` : "没拆出任务，再写具体一点。");
-      }
-    } catch {
-      setMsg("网络异常，稍后再试。");
+      const data = await api<{ tasks?: Draft[] }>("/api/ai", { method: "POST", body: { action: "parse", text } });
+      const list: Draft[] = (data.tasks || []).slice(0, 8);
+      setDrafts(list);
+      setPicked(list.map(() => true));
+      setMsg(list.length ? `拆出 ${list.length} 件，勾选后入库。` : "没拆出任务，再写具体一点。");
+    } catch (e) {
+      setMsg(errText(e, "拆解失败，稍后再试"));
+      setDrafts([]);
     } finally {
       setLoading(false);
     }
@@ -52,16 +44,15 @@ export default function AiApp({ aiReady, settingsHref, reviewHref }: { aiReady: 
       for (let i = 0; i < drafts.length; i++) {
         if (!picked[i]) continue;
         const d = drafts[i];
-        await fetch("/api/tasks", {
+        await api("/api/tasks", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             title: d.title,
             area: d.area || "work",
             priority: d.priority || "med",
             due_date: d.due_date || null,
             note: "由 AI 从记录拆解",
-          }),
+          },
         });
       }
       setMsg("已加入任务。");

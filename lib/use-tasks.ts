@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, TaskStatus } from "@/lib/db";
 import { useToast } from "@/components/Toast";
+import { api, errText } from "@/lib/api";
 
 const UNDO_MS = 6000;
 
@@ -28,7 +29,7 @@ export function useTasks(initial: Task[]) {
       // 卸载时把还没到期的删除直接执行，避免「删了又回来」
       for (const [id, t] of map) {
         clearTimeout(t);
-        void fetch(`/api/tasks/${id}`, { method: "DELETE" });
+        void api(`/api/tasks/${id}`, { method: "DELETE" }).catch(() => {});
       }
       map.clear();
     };
@@ -36,12 +37,11 @@ export function useTasks(initial: Task[]) {
 
   const commitStatus = useCallback(
     async (id: number, status: TaskStatus) => {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) toast("没保存上，刷新一下再试");
+      try {
+        await api(`/api/tasks/${id}`, { method: "PATCH", body: { status } });
+      } catch (e) {
+        toast(errText(e, "没保存上，刷新一下再试"));
+      }
       router.refresh();
     },
     [router, toast]
@@ -76,7 +76,11 @@ export function useTasks(initial: Task[]) {
       setTasks((list) => list.filter((t) => t.id !== task.id));
       const timer = setTimeout(async () => {
         timers.current.delete(task.id);
-        await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+        try {
+          await api(`/api/tasks/${task.id}`, { method: "DELETE" });
+        } catch (e) {
+          toast(errText(e, "没删掉，刷新一下再试"));
+        }
         router.refresh();
       }, UNDO_MS);
       timers.current.set(task.id, timer);

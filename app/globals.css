@@ -751,6 +751,16 @@ body.dragging{cursor:grabbing;user-select:none}
   .drawer{border-radius:0;top:6%}
   .c-head{padding:13px 14px 0}
   .c-body{padding:10px 14px 14px}
+
+  /* iOS Safari 会在输入框字号 <16px 时聚焦自动放大页面且不缩回。
+   * 移动端把所有可编辑输入的字号提到 16px，从源头关掉这个行为。
+   * 标题输入框（.note-editor input.title 21px）不受影响。 */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  .note-editor input.title {
+    font-size: 21px !important;
+  }
 }
 
 .done-list{display:flex;flex-direction:column;flex:1}

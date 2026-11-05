@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Download, Check, Upload, RefreshCw, Database } from "lucide-react";
@@ -39,6 +39,17 @@ export default function SettingsApp({
   const [pwMsg, setPwMsg] = useState("");
   const [updating, setUpdating] = useState(false);
   const [updMsg, setUpdMsg] = useState("");
+  /* 点完「立即更新」后轮询 /api/health，用真实的版本号变化给出反馈。
+     为什么必须轮询：watchtower 拉完镜像会重建容器，这个页面会先断连；
+     光说「已触发」用户根本不知道到底成没成。 */
+  const [built, setBuilt] = useState(initial.built);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const changePw = async () => {
     if (newPw.length < 6) return setPwMsg("新密码至少 6 位");
@@ -129,12 +140,43 @@ export default function SettingsApp({
     setUpdMsg("");
     try {
       const d = await api<{ message?: string }>("/api/update", { method: "POST" });
-      setUpdMsg(d.message || "已触发更新，稍等片刻后刷新页面");
+      setUpdMsg(d.message || "已通知 watchtower");
     } catch (e) {
       setUpdMsg(errText(e, "网络异常，没叫动更新"));
-    } finally {
       setUpdating(false);
+      return;
     }
+    setUpdating(false);
+
+    // 开始盯版本号：断连说明容器正在重建，别当失败
+    const before = built;
+    let tries = 0;
+    let dropped = false;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      tries += 1;
+      if (tries > 60) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setUpdMsg("等了 3 分钟版本还没变，可能是构建失败或没有新提交");
+        return;
+      }
+      try {
+        const r = await fetch("/api/health", { cache: "no-store" });
+        if (!r.ok) throw new Error("bad");
+        const h = (await r.json()) as { sha?: string; built?: string };
+        if (h.built && h.built !== before) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setBuilt(h.built);
+          setUpdMsg(`已更新到 ${h.built}，刷新页面就是新版`);
+          router.refresh();
+          return;
+        }
+        if (dropped) setUpdMsg("容器重建好了，但版本没变（说明没有新提交）");
+      } catch {
+        dropped = true;
+        setUpdMsg("容器正在重建，页面会短暂断开…");
+      }
+    }, 3000);
   };
 
   return (
@@ -284,7 +326,7 @@ export default function SettingsApp({
             {updMsg && <span className="hint2" style={{ color: updMsg.includes("失败") || updMsg.includes("没叫") || updMsg.includes("缺少") ? "#D2795C" : "#2E8C77" }}>{updMsg}</span>}
           </div>
           <p className="notice" style={{ marginTop: 10 }}>
-            当前版本：<b style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{initial.built || initial.version.slice(0, 7)}</b>
+            当前版本：<b style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{built || initial.version.slice(0, 7)}</b>
             <br />点「立即更新」后，watchtower 会去拉最新镜像并重建容器，约 30 秒生效；
             生效后这个页面会自动刷新成新版本日期。构建失败或没新提交时，版本日期保持不变。
           </p>

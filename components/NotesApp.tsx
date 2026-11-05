@@ -425,7 +425,7 @@ export default function NotesApp({
                 <span>{format(new Date(active.updated_at), "yyyy/MM/dd HH:mm")}</span>
                 {saved && <span style={{ color: "#2E8C77" }}>已保存 {saved}</span>}
               </div>
-              <div className="tags" style={{ marginBottom: 8 }}>
+              <div className="tags ne-row" style={{ marginBottom: 8 }}>
                 {sources.map((s) => (
                   <button key={s} className={`tg ${source === s ? "on" : ""}`} onClick={() => { setSource(s); draft.current.source = s; save(true); }}>{s}</button>
                 ))}
@@ -437,7 +437,7 @@ export default function NotesApp({
                 />
               </div>
 
-              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <div className="ne-row" style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                 <button className={`chip ${!preview ? "on" : ""}`} onClick={() => setPreview(false)}><Pencil size={9} style={{ verticalAlign: -1, marginRight: 2 }} />编辑</button>
                 <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(true)}><Eye size={9} style={{ verticalAlign: -1, marginRight: 2 }} />预览</button>
                 <span className="hint2" style={{ marginLeft: "auto", alignSelf: "center" }}>支持 Markdown</span>

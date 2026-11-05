@@ -66,7 +66,9 @@ a{color:inherit}
 .side-foot .gear{margin-left:auto;border:0;background:transparent;color:#A9BAC9;display:grid;place-items:center}
 
 /* ---------- main ---------- */
-main{position:relative;z-index:1;margin-left:236px;padding:22px 32px 60px;max-width:1400px}
+main{position:relative;z-index:1;margin-left:236px;padding:22px 32px 60px}
+/* 大屏不要留空白：以前这里写死 max-width:1400px，1920 以上的屏幕右侧会空一大块 */
+@media(min-width:1800px){main{padding-left:44px;padding-right:44px}}
 .top{display:flex;align-items:center;gap:14px;color:var(--dim);font-size:11px}
 .crumb b{color:#42586C;font-weight:600}
 .crumb .proto{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--acc-d);border:1px solid var(--acc-line);background:var(--acc-soft);border-radius:6px;padding:1px 6px;margin-left:7px;vertical-align:1px}
@@ -1523,3 +1525,24 @@ input[type="checkbox"].cb:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(5
 .col-more{width:100%;margin-top:2px;padding:7px 10px;border:1px dashed #DDE9F3;border-radius:10px;
   background:transparent;color:#7C93A8;font-size:10.5px;cursor:pointer;transition:.14s}
 .col-more:hover{background:#F4FAFD;border-color:#BFE0F0;color:#4E7C99}
+
+/* ---------- 超大屏：整体收成 2400 宽的居中带 ----------
+   为什么不是只给 main 加 max-width：那样右侧会空出一大条，看起来像没写完。
+   把侧栏和主区当作一个整体居中，两侧才是对称留白。
+   2460px 以下完全不影响 —— 2560 的屏幕依然接近铺满（左右各 80px）。
+   真到 4K 那种宽度才会明显看出居中带。 */
+@media (min-width:2460px){
+  .side{left:calc((100vw - 2400px)/2)}
+  main{margin-left:calc((100vw - 2400px)/2 + 236px);max-width:2164px}
+  .capture-fab{right:calc((100vw - 2400px)/2 + 28px)}
+}
+
+/* 记录正文限宽：一行太长眼睛会跑偏，45–75 个字符是舒服区间。
+   卡片本身仍然铺满，只是文字块居中。 */
+.note-editor input.title,
+.note-editor textarea,
+.note-editor .md,
+.note-editor .sub,
+.note-editor .note-links,
+.note-editor .ne-row,
+.note-editor .foot{max-width:780px;margin-left:auto;margin-right:auto;width:100%}

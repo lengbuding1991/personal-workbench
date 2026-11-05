@@ -33,26 +33,12 @@
     "status": "not-started"
   },
   "qa": {
+    "round": "第二十五轮：模块关联 + 大屏布局 + 立即更新链路修复",
     "status": "verified",
-    "round": "第二十一轮：项目/重复/提醒/搜索/拖拽/统计",
-    "verified": [
-      "pnpm typecheck 通过、pnpm build 通过（First Load JS 103 kB）",
-      "本地 9 个页面全部 200；/nope 返回 404 且为中文页",
-      "CDP 回归：首页/任务/日历/笔记/复盘/设置/搜索 全部正常渲染",
-      "提醒铃铛点外部与按 Esc 均能关闭",
-      "手机端 390x844：笔记页列表/编辑两屏切换正确；日历周视图每天一卡；弹窗垂直居中不越界",
-      "react-day-picker 日期弹层：桌面 popRect 在视口内、手机底部抽屉正常、翻月正常、时间下拉可选",
-      "GitHub Actions arm64 构建成功（run 41850287271），清理旧镜像步骤 ✅ 执行成功",
-      "GHCR 镜像版本 20 → 2（dcde0dd + fa8faa5，latest 指向 dcde0dd）",
-      "线上 /api/health 返回 sha=dcde0dd、built=2026-11-04 22:42，与当次构建一致（VERSION 文件方案生效）",
-      "残留公开仓库 lengbuding1991/workbench-image 已删除（204）"
-    ],
     "unverified": [
-      "真机 iPhone / iPad 实测",
-      "AI 真实调用（ai_key 仍为空）",
-      "备份恢复演练（下载 db 后还原）",
-      "「立即更新」按钮端到端",
-      "重复任务在跨月/跨年边界的行为"
+      "真机 iPhone/iPad 实测",
+      "备份恢复演练",
+      "DeepSeek Key 未填（AI 功能灰）"
     ]
   },
   "deploy": {
@@ -80,14 +66,10 @@
   },
   "release": {
     "domain": "https://workbench.lbuding.com",
-    "platform": "绿联 DH4300 Plus（arm64，8GB）",
     "image": "ghcr.io/lengbuding1991/personal-workbench:latest",
-    "image_versions_kept": 2,
-    "auto_update": "watchtower 24h 兜底轮询 + 设置页「立即更新」按钮（HTTP API）",
-    "data_dir_on_nas": "/volume1/docker/workbench/data",
-    "version_source": "镜像内 /app/VERSION 文件（环境变量盖不掉）",
-    "current_sha": "dcde0dde96b26526130ec886c9741a7f748c95db",
-    "current_built": "2026-11-04 22:42"
+    "current_sha": "449305f90173dc4c5ce79490c15ab7477d8c96a7",
+    "current_built": "2026-11-05 10:50",
+    "version_source": "镜像内 /app/VERSION 文件"
   },
   "features": {
     "project_system": {

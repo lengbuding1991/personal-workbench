@@ -346,3 +346,20 @@ m15815 明确「先还原，我只要能导出 workbench.db」。已删 `lib/bac
 - **图标**：用侧栏 logo 的三白块 + 蓝绿渐变（`#5AD7C9→#35A8D8`），由 `scripts/gen_pwa_icons.py`（纯 Pillow）生成 192/512/apple-touch(180)/maskable；方块满幅无圆角无透明，让 iOS 自动切圆角、Android maskable 自裁形状都不出黑边。同时把 `app/icon.svg`（原紫色「工」形占位图）也改成同一套以保持一致。
 - **iOS 状态栏**：`appleWebApp.statusBarStyle: "default"`（不透明白底、内容不被压住，避开 `black-translucent` 的重叠），另加 `@media (display-mode:standalone) and (max-width:640px)` 的 `env(safe-area-inset-top)` 兜底。
 - **上线链路不变**：`pnpm push → GitHub Actions 构建 arm64 → watchtower 轮询重建`；本次改动**未推送**，等用户明确同意。
+
+### 手机端弹窗（第二十六轮）
+- **问题**：手机上填内容多的弹窗（新建任务/日程/项目）用 `.sheet` 居中 + `max-height:88vh`，几乎铺满整屏，下沿还压在底部导航条上。
+- **改法**：≤640px 时 `.modal` 改成底部抽屉（`padding:0`、`align-items:flex-end`），`.sheet` 上圆角 `22px 22px 0 0`、`max-height:85dvh`（旧浏览器兜底 `85vh`，必须用 `@supports` 分开写，否则会被 CSS 压缩器合并只剩一条）、`sheetUp` 上滑动画、顶部阴影；`.acts` 底部加 `env(safe-area-inset-bottom)` 安全区，按钮不被 iPhone 底条挡住。
+- **弹窗打开时隐藏底部导航 `.side` 与悬浮笔 `.capture-fab`**（`body:has(.modal)`）。`:has` 不支持的老浏览器只是导航条不隐藏，没有功能损失。
+- **快速记录 `.modal.qk` 保持居中卡片**，单独补回 `padding:14px`。
+- 只动 `app/globals.css`，没碰组件；`pnpm build` 通过。
+
+### 每日习惯（第二十七轮）
+- **要的是「独立打卡习惯」，不是复用重复任务**：任务那条线是「做完就消失 / 到点生成下一次」，习惯要的是「每天同一件事、连续天数、一眼看本周」。混在一起会让任务面板变脏，所以单开 `habit` + `habit_log` 两张表。
+- **按天存一条，不存事件流**：`habit_log` 上 `UNIQUE(habit_id, date)`，一天点三次也只是一条，顺带防重复计数；补卡就是插一条历史日期。
+- **连续天数的算法（`lib/habits.ts` 的 `computeStreak`）**：今天已打卡就从今天往前数；今天还没打卡就从昨天往前数 —— 否则每天零点一过连续天数会先跳成 0，用户会以为记录丢了。断一天即停。
+- **只能补最近 60 天、不能给未来打卡**：60 天是 `LOOKBACK`，与统计的半年热力图尺度对齐；未来日期直接 400，避免「先勾上再说」把连续天数刷成假的。
+- **改不动就退回**：前端 `optimistic()` 先改界面再发请求，失败回滚并 toast；服务端每次都回全量 `{ today, days, habits }`，前端整体替换，不做增量合并。
+- **接口分三个**：`/api/habits`（列表 + 新建）、`/api/habits/[id]`（改名/改色/归档 + 删除，删习惯级联删打卡记录）、`/api/habits/log`（打卡/取消切换）。PATCH 找不到 id 返回 404，不是静默 200。
+- **入入口放在侧栏第二组**（`secondary`）：桌面侧栏能看到，手机在底部「更多」弹层里；没有占手机底部那 4 个主入口。
+- **窄屏收一号**：`@media (max-width:360px)` 把圆点 15→13px、间距 5→3px、第二行左缩进 40→34px，否则 320px 宽的 iPhone SE 上「连续 x 天 + 本周 x/7 + 7 个圆点」会挤出边框（CDP 实测原来溢出 5px）。

@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Wand2,
   ChartNoAxesColumn,
+  Flame,
   Search,
   Settings,
   LogOut,
@@ -37,6 +38,7 @@ const primary = [
 ];
 
 const secondary = [
+  { href: "/habits", label: "每日习惯", icon: Flame },
   { href: "/projects", label: "项目进度", icon: FolderKanban },
   { href: "/review", label: "每日复盘", icon: RotateCcw },
   { href: "/ai", label: "AI 助手", icon: Wand2 },

@@ -189,6 +189,27 @@ CREATE TABLE IF NOT EXISTS ai_run (
   tokens INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+
+-- 每日习惯：habit 是习惯本身，habit_log 是「哪天做了」。
+-- 为什么按天存一行、而不是存一个计数：习惯只关心「今天做没做」，
+-- 一天点三次没有意义；UNIQUE(habit_id,date) 顺便保证重复点击不会多算。
+CREATE TABLE IF NOT EXISTS habit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#3AC8C2',
+  sort INTEGER NOT NULL DEFAULT 0,
+  archived INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS habit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  habit_id INTEGER NOT NULL REFERENCES habit(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(habit_id, date)
+);
+CREATE INDEX IF NOT EXISTS idx_habitlog_habit ON habit_log(habit_id, date);
 `;
 
 function seed(db: DatabaseSync) {

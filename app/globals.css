@@ -811,13 +811,27 @@ body.dragging{cursor:grabbing;user-select:none}
   .cal2-card .cal2-mweek{display:flex}
   .cal2-card .cal2-foot{display:none}
   .day-side{position:static}
-  /* 弹窗（新日程/任务等）：居中，限制高度，表单滚动、按钮固定底部 */
-  .modal{padding:14px;align-items:center;background:rgba(23,52,80,.32)}
-  .sheet{width:100%;border-radius:20px;padding:20px 18px 0;max-height:88vh;
-    display:flex;flex-direction:column;overflow:hidden}
+  /* 弹窗（新日程/任务等）：手机上做成底部抽屉。
+     内容多时表单内部滚动、按钮常驻底部；最多占 85% 屏高，顶部留出可见的页面，
+     不再整屏铺满；打开时把底部导航和悬浮笔让开，避免压住导航条。 */
+  body:has(.modal) .side,
+  body:has(.modal) .capture-fab{display:none}
+  .modal{padding:0;align-items:flex-end;background:rgba(23,52,80,.32)}
+  .modal.qk{padding:14px}
+  .sheet{width:100%;border-radius:22px 22px 0 0;padding:20px 18px 0;
+    max-height:85vh;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 -12px 40px rgba(23,52,80,.18);
+    animation:sheetUp .22s cubic-bezier(.2,.7,.3,1) both}
+  /* 支持 dvh 的浏览器用动态视口高度，键盘弹出时不会超出屏幕；
+     老浏览器保留上面的 85vh 兜底（写在一起会被压缩器合并掉）。 */
+  @supports (max-height:85dvh){
+    .sheet{max-height:85dvh}
+  }
   .sheet .x{top:16px;right:16px}
   .sheet .form{overflow:auto;padding-bottom:8px;margin-right:-4px;padding-right:4px}
-  .sheet .acts{flex:none;display:flex;gap:8px;margin:10px -18px 0;padding:12px 18px;
+  .sheet .acts{flex:none;display:flex;gap:8px;margin:10px -18px 0;
+    padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));
     background:#fff;border-top:1px solid var(--line)}
   .sheet .acts .b1{flex:1;padding:12px 16px;font-size:14px;border-radius:12px}
   .sheet .acts .b2{padding:12px 16px;font-size:13px;border-radius:12px}
@@ -1586,4 +1600,86 @@ input[type="checkbox"].cb:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(5
    桌面端（宽度 > 640px）完全不动。 */
 @media (display-mode:standalone) and (max-width:640px){
   main{padding-top:calc(16px + env(safe-area-inset-top,0px))}
+}
+
+/* ============ 每日习惯 ============ */
+/* 顶部汇总：左边大数字，中间进度条，右边最长连续 */
+.hb-sum{flex-direction:row;align-items:center;gap:16px;padding:15px 18px;margin-bottom:12px}
+.hb-sum-num{display:flex;align-items:baseline;gap:3px;flex:none}
+.hb-sum-num b{font-size:29px;font-weight:700;letter-spacing:-.03em;line-height:1;
+  background:linear-gradient(140deg,#3AC8C2,#5AA7E8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hb-sum-num span{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.hb-sum-mid{flex:1;min-width:0}
+.hb-sum-label{font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb-bar{height:7px;border-radius:99px;background:#EDF5FB;overflow:hidden}
+.hb-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#4FD3C8,#5AA7E8);transition:width .3s}
+.hb-sum-best{flex:none;display:flex;align-items:center;gap:4px;font-size:10px;color:#A97C1B;
+  background:var(--amber-soft);border:1px solid #F6E3B4;border-radius:99px;padding:4px 9px;white-space:nowrap}
+
+/* 添加一行 */
+.hb-add{display:flex;gap:8px;margin-bottom:12px}
+.hb-add input{flex:1;min-width:0;border:1px solid var(--line);background:#fff;border-radius:12px;
+  padding:10px 13px;font-size:12px;color:var(--ink);outline:none}
+.hb-add input::placeholder{color:#A9BAC9}
+.hb-add input:focus{border-color:var(--acc-line);box-shadow:0 0 0 3px rgba(58,200,194,.1)}
+.hb-add .b1{display:inline-flex;align-items:center;gap:5px}
+.hb-add .b1:disabled{opacity:.45;cursor:default}
+
+.hb-empty{border:1px dashed #D8E8F4;border-radius:18px;padding:26px 18px;text-align:center;
+  background:rgba(255,255,255,.6);display:flex;flex-direction:column;gap:6px}
+.hb-empty b{font-size:13px}
+.hb-empty span{font-size:11px;color:var(--dim);line-height:1.75}
+
+/* 习惯列表：一行两排，第一排勾选+名字+操作，第二排连续天数+本周+最近 7 天圆点 */
+.hb-list{display:flex;flex-direction:column;gap:8px}
+.hb-row{background:var(--card);border:1px solid #EDF4FA;border-radius:16px;padding:12px 14px;
+  box-shadow:var(--sh);transition:border-color .2s,background .2s}
+.hb-row.done{border-color:#CFEEEB;background:linear-gradient(180deg,#FCFFFE,#F4FCFB)}
+.hb-line{display:flex;align-items:center;gap:10px}
+.hb-check{flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid #D3E4F1;background:#fff;
+  display:grid;place-items:center;color:#fff;padding:0;transition:transform .15s,border-color .2s,background .2s}
+.hb-check:hover{border-color:var(--acc-line)}
+.hb-check:active{transform:scale(.92)}
+.hb-name{font-size:13px;font-weight:650;letter-spacing:-.01em;cursor:text;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-row.done .hb-name{color:#3E6F6C}
+.hb-name-edit{flex:1;min-width:0;border:0;border-bottom:1px solid var(--acc-line);background:transparent;
+  font-size:13px;font-weight:650;color:var(--ink);padding:2px 0;outline:none}
+.hb-acts{margin-left:auto;display:flex;gap:4px;flex:none}
+.hb-ico{width:26px;height:26px;border-radius:8px;border:0;background:none;display:grid;place-items:center;
+  color:#A8BACA;padding:0}
+.hb-ico:hover{background:#F2F8FD;color:#5E7C93}
+.hb-ico.danger:hover{background:#FDF0F4;color:#C25E8C}
+.hb-line2{display:flex;align-items:center;gap:10px;margin-top:8px;padding-left:40px}
+.hb-streak{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#C7822A;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.hb-streak.off{color:#A9BAC9}
+.hb-week{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hb-days{margin-left:auto;display:flex;gap:5px}
+.hb-dot{width:15px;height:15px;border-radius:50%;border:1.5px solid #DCE9F3;background:#fff;padding:0;
+  transition:transform .12s}
+.hb-dot:hover{transform:scale(1.15)}
+.hb-dot.on{border-color:transparent}
+.hb-dot.today{box-shadow:0 0 0 2.5px rgba(58,200,194,.22)}
+.hb-tip{font-size:10px;color:#A2B3C2;margin:12px 2px 0;line-height:1.8}
+
+@media (max-width:640px){
+  .hb-sum{padding:13px 14px;gap:12px;border-radius:16px}
+  .hb-sum-num b{font-size:26px}
+  .hb-sum-best{font-size:9px;padding:3px 8px}
+  .hb-add input{padding:9px 12px;font-size:12px}
+  .hb-row{padding:11px 12px;border-radius:15px}
+  .hb-line2{padding-left:40px;gap:8px}
+  .hb-days{gap:4px}
+  .hb-dot{width:14px;height:14px}
+  .hb-tip{font-size:10px}
+}
+
+/* 320 ~ 360 的窄屏（iPhone SE 一类）：连续天数 + 本周 + 7 个圆点会挤出边框，
+   把圆点和间距收小一号，保证一行放得下，不用换行。 */
+@media (max-width:360px){
+  .hb-line2{padding-left:34px;gap:6px}
+  .hb-days{gap:3px}
+  .hb-dot{width:13px;height:13px}
+  .hb-streak,.hb-week{font-size:9.5px}
 }

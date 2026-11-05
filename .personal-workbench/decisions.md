@@ -363,3 +363,10 @@ m15815 明确「先还原，我只要能导出 workbench.db」。已删 `lib/bac
 - **接口分三个**：`/api/habits`（列表 + 新建）、`/api/habits/[id]`（改名/改色/归档 + 删除，删习惯级联删打卡记录）、`/api/habits/log`（打卡/取消切换）。PATCH 找不到 id 返回 404，不是静默 200。
 - **入入口放在侧栏第二组**（`secondary`）：桌面侧栏能看到，手机在底部「更多」弹层里；没有占手机底部那 4 个主入口。
 - **窄屏收一号**：`@media (max-width:360px)` 把圆点 15→13px、间距 5→3px、第二行左缩进 40→34px，否则 320px 宽的 iPhone SE 上「连续 x 天 + 本周 x/7 + 7 个圆点」会挤出边框（CDP 实测原来溢出 5px）。
+
+## 2026-11-05 — 去掉 PWA，回到普通网页模式
+- **用户决定**：PWA 用不上，「把它去了吧，就正常网页模式就行」。推翻同日 `## 2026-11-05 — 手机版做 PWA，不做原生 App / 小程序` 里「做成 PWA」的那部分做法；「只维护一套网页代码、不做原生 App / 小程序」这个结论不变。
+- **删掉的东西**：`app/manifest.ts`、`public/sw.js`、`public/offline.html`、`public/` 下 5 个图标（192/512/maskable/apple-touch）、`components/ServiceWorkerRegister.tsx`、`scripts/gen_pwa_icons.py`。
+- **还原的改动**：`app/layout.tsx` 去掉 `manifest` / `appleWebApp` / `icons` / `themeColor` / `colorScheme` 与 `<ServiceWorkerRegister />`；`middleware.ts` 的 `PUBLIC_PATHS` 收回 `["/login","/api/auth","/api/health"]`；`app/globals.css` 删掉 `@media (display-mode:standalone)` 那段顶部安全区。
+- **保留**：`app/icon.svg` 仍是蓝绿三白块（浏览器标签页 favicon），它走的是 Next 的文件约定，和 PWA 无关，且与侧栏 logo 一致。
+- **副作用说明**：已经「添加到主屏幕」的设备上，那个图标会退化成普通网址书签；之前注册过的 Service Worker 会在浏览器下次检查 `sw.js` 拿到 404 后自行注销，缓存里的断网兜底页失效（本来也没有离线能力）。

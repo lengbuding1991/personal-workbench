@@ -1594,14 +1594,6 @@ input[type="checkbox"].cb:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(5
 .note-editor .ne-row,
 .note-editor .foot{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
 
-/* ---------- PWA：已安装成 App 时，手机顶部状态栏/刘海区域 ----------
-   只有在「已添加到主屏幕、standalone 全屏」且是窄屏时才生效：
-   env(safe-area-inset-top) 在不支持/无刘海时为 0，不会改变原有 16px 布局；
-   桌面端（宽度 > 640px）完全不动。 */
-@media (display-mode:standalone) and (max-width:640px){
-  main{padding-top:calc(16px + env(safe-area-inset-top,0px))}
-}
-
 /* ============ 每日习惯 ============ */
 /* 顶部汇总：左边大数字，中间进度条，右边最长连续 */
 .hb-sum{flex-direction:row;align-items:center;gap:16px;padding:15px 18px;margin-bottom:12px}

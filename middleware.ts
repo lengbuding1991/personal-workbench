@@ -17,16 +17,7 @@ const COOKIE_NAME = "wb_session";
 /** 标记「已经设置过密码」的 cookie，登录页据此决定显示「设置密码」还是「输入密码」 */
 const SETUP_COOKIE = "wb_setup";
 
-const PUBLIC_PATHS = [
-  "/login",
-  "/api/auth",
-  "/api/health",
-  // PWA：安装到主屏幕前，浏览器要在「还没登录 / 还没设密码」时就能拿到这些，
-  // 否则取清单被 302 去 /login，安装直接失败。图标 .png 已被下面扩展名正则放行。
-  "/manifest.webmanifest",
-  "/sw.js",
-  "/offline.html",
-];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health"];
 
 function isPublic(pathname: string) {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;

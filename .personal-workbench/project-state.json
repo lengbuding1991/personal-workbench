@@ -3,7 +3,7 @@
   "project_name": "个人工作台",
   "phase": "operational",
   "created_at": "2026-11-02T12:49:51Z",
-  "updated_at": "2026-11-05T07:47:30Z",
+  "updated_at": "2026-11-05T10:28:00Z",
   "primary_scenario": "个人人生工作台：待办→完成复盘、记录+查找、日程+提醒（通用底座，模块后加）",
   "primary_device": "desktop",
   "data_mode": "local",
@@ -30,15 +30,14 @@
     "url": null
   },
   "pwa": {
-    "status": "implemented-local",
-    "note": "本地已实现并构建验证通过：app/manifest.ts（/manifest.webmanifest，application/manifest+json）、public/sw.js（仅断网兜底页，不缓存 API/页面/登录态）、public/offline.html、public/ 5 个图标（192/512/apple-touch/maskable）、components/ServiceWorkerRegister.tsx、app/layout.tsx 补 manifest/appleWebApp/icons/themeColor、middleware.ts 放行 PWA 静态资源。尚未推送到 GitHub 上线（等用户同意）。"
+    "status": "removed",
+    "note": "2026-11-05 按用户要求整段撤掉：删了 app/manifest.ts、public/sw.js、public/offline.html、5 个图标、components/ServiceWorkerRegister.tsx、scripts/gen_pwa_icons.py，并还原 app/layout.tsx 的 manifest/appleWebApp/icons/themeColor 与 middleware.ts 的放行项。工作台回到普通网页模式（浏览器里直接用，不安装到主屏）。"
   },
   "qa": {
-    "round": "第二十七轮：新增每日习惯（打卡 + 连续天数）",
+    "round": "第二十八轮：去掉 PWA，回到普通网页模式",
     "status": "verified",
     "unverified": [
       "真机 iPhone/iPad 实测",
-      "真机 PWA 安装实测（添加到主屏幕 / 断网兜底页）",
       "手机端弹窗底部抽屉样式真机实测",
       "备份恢复演练",
       "DeepSeek Key 未填（AI 功能灰）",

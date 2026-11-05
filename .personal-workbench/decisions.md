@@ -333,3 +333,16 @@ m15815 明确「先还原，我只要能导出 workbench.db」。已删 `lib/bac
 - **修法**：Next 15 的 `after()` 把发送挪到响应之后；**不设短超时**（容器被停掉导致的断连属成功路径，提前掐可能造成「容器停了没起来」）；加 20 秒冷却防连点排队重复拉 76MB。
 - **前端必须给真实反馈**：轮询 `/api/health` 比对 `built`，分「正在拉 / 容器重建中 / 已更新到 X / 三分钟没变」四态。
 - **教训**：「不能等响应」≠「不能 await 发送」。这轮就是被这句话带偏的。
+
+## 2026-11-05 — 手机版做 PWA，不做原生 App / 小程序
+
+- **决定**：只维护一套网页代码，把网页做成 PWA（可安装到主屏、全屏、有自己的图标），不做原生 App、不做微信小程序。
+- **理由**：App/小程序里若装的是「网址」而非重写界面，更新服务器网页 = 所有端下次打开即新版，不用三份同时维护；小程序（个人账号 web-view 不开放 + 需 HTTPS+ICP 备案 + 纯套壳易被「功能过于简单」拒审）成本最高收益最低。
+- **用起来像 App，身份上不是**：有图标、无地址栏、独立窗口、启动画面；但不在应用商店、不用审核，本质是固定到主屏幕的全屏网页。关掉后收不到推送、离线不可用（数据在 NAS）、启动有极短白屏，这些是已坦白、接受的差距。
+
+### PWA 实现（本轮）
+- **清单用 `app/manifest.ts`**（typed + Next 自动给 `application/manifest+json`），不用 `public/manifest.json`；URL 是 `/manifest.webmanifest`，需在 middleware 白名单显式放行（`.webmanifest` 不在扩展名正则里，否则未登录时 302 去 /login，安装拿不到清单）。
+- **SW 只做「断网兜底页」**，绝不缓存 `/api/*`、页面 HTML、登录态、私有数据 —— 这是单用户密码登录 + 数据在 NAS + 全站 force-dynamic 的应用，缓存页面 = 把上一个登录用户的记录存进这台设备。静态资源交给浏览器 HTTP 缓存，避免 SW 缓存后更新拿旧 JS。
+- **图标**：用侧栏 logo 的三白块 + 蓝绿渐变（`#5AD7C9→#35A8D8`），由 `scripts/gen_pwa_icons.py`（纯 Pillow）生成 192/512/apple-touch(180)/maskable；方块满幅无圆角无透明，让 iOS 自动切圆角、Android maskable 自裁形状都不出黑边。同时把 `app/icon.svg`（原紫色「工」形占位图）也改成同一套以保持一致。
+- **iOS 状态栏**：`appleWebApp.statusBarStyle: "default"`（不透明白底、内容不被压住，避开 `black-translucent` 的重叠），另加 `@media (display-mode:standalone) and (max-width:640px)` 的 `env(safe-area-inset-top)` 兜底。
+- **上线链路不变**：`pnpm push → GitHub Actions 构建 arm64 → watchtower 轮询重建`；本次改动**未推送**，等用户明确同意。

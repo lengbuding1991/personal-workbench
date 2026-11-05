@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>离线了 · 个人工作台</title>
+  <style>
+    :root {
+      --bg: #EFF6FC;
+      --ink: #1D2A38;
+      --sub: #6E8496;
+      --acc: #3AC8C2;
+      --acc-d: #1F9E9A;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card { text-align: center; max-width: 360px; }
+    .logo {
+      width: 84px; height: 84px;
+      margin: 0 auto 22px;
+      border-radius: 22px;
+      background: linear-gradient(145deg, #5AD7C9, #35A8D8);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 14px 30px rgba(53, 168, 216, 0.28);
+    }
+    .logo svg { width: 44px; height: 44px; display: block; }
+    h1 { font-size: 21px; margin: 0 0 10px; font-weight: 700; letter-spacing: -0.01em; }
+    p { font-size: 14px; line-height: 1.65; color: var(--sub); margin: 0 0 26px; }
+    button {
+      appearance: none; border: none; cursor: pointer;
+      background: linear-gradient(145deg, var(--acc), var(--acc-d));
+      color: #fff; font-size: 15px; font-weight: 600;
+      padding: 12px 34px; border-radius: 13px;
+      box-shadow: 0 8px 20px rgba(58, 200, 194, 0.32);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    button:active { transform: scale(0.97); box-shadow: 0 4px 12px rgba(58, 200, 194, 0.28); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="10" height="6" rx="3" fill="#fff" opacity=".95"/>
+        <rect x="1" y="9" width="6" height="10" rx="3" fill="#fff" opacity=".8"/>
+        <rect x="9" y="9" width="10" height="10" rx="5" fill="#fff" opacity=".55"/>
+      </svg>
+    </div>
+    <h1>当前没有网络</h1>
+    <p>个人工作台的数据都存在你自己的服务器上，连上网才能继续使用。</p>
+    <button type="button" onclick="location.reload()">重试</button>
+  </div>
+</body>
+</html>

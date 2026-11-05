@@ -93,6 +93,7 @@ V1 不做：登录/多用户、云同步、原生 App、团队协作、支付/�
 | 24 | 统一请求封装 | `lib/api.ts` 的 `api()` / `errText()`，20 余处请求接入 | ✅ |
 | 25 | 版本号可追溯 | 镜像内 `/app/VERSION`，`/api/health` 与设置页同源读取 | ✅ |
 | 26 | GHCR 镜像自动清理 | 构建后 `delete-package-versions` 只留 2 个 + 手动 `cleanup-images.yml` | ✅ |
+| 27 | PWA（可安装到主屏） | `app/manifest.ts`、`public/sw.js`（断网兜底页）、`public/offline.html`、5 个图标、`ServiceWorkerRegister`、middleware 放行 | ✅（本地实现，待推送上线） |
 
 ## 已知未完成
 
@@ -100,6 +101,7 @@ V1 不做：登录/多用户、云同步、原生 App、团队协作、支付/�
 |---|---|---|
 | DeepSeek Key | ⏳ 待用户填 | `ai_key` 为空，AI 拆任务 / 复盘起稿 / 连接测试都是灰的 |
 | 真机 iPhone 实测 | ⏳ 待验证 | 只在 CDP 390×844 模拟环境下验证过 |
+| PWA 真机安装实测 | ⏳ 待验证 | 「添加到主屏幕 / 断网兜底页」只在本地 HTTP 上验证过资源可匿名访问 |
 | 备份恢复演练 | ⏳ 待做 | 备份机制在跑（14 份），但没真正恢复过一次 |
 | 「立即更新」端到端 | ⏳ 待验证 | 按钮 → watchtower HTTP API → 重建容器，整条链路没实测 |
 | 阿里云那台清理 | ⏳ 用户明确说不用管 | 已迁到 NAS，那台留着跑老项目 |

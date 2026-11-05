@@ -1178,17 +1178,34 @@ body.dragging{cursor:grabbing;user-select:none}
 .df-dp .rdp-button_previous,.df-dp .rdp-button_next{border-radius:8px}
 .df-dp .rdp-button_previous:hover,.df-dp .rdp-button_next:hover{background:#F2F8FD}
 
-/* 时间（轻量下拉，去掉重边框） */
-.df-time{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid #F0F6FB}
+/* 时间：iOS 那种滚轮。上下滑动，中间一条高亮带，选中的数字停在带子里。
+   24 个小时 + 12 个分钟用下拉要点两次，滚轮一次拨到底，手感也更接近手机。 */
+.df-time{display:flex;align-items:center;gap:8px;
+  margin-top:10px;padding-top:12px;border-top:1px solid #F0F6FB}
+/* 手机上换成滚轮，竖排布局 */
+.df-sheet .df-time{flex-direction:column;gap:4px;margin-top:8px}
 .df-time-label{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8FA2B3;font-weight:600;letter-spacing:.02em}
-.df-time select{flex:1;height:34px;border:1px solid transparent;background:#F5FAFD;border-radius:9px;
-  font-family:var(--mono);font-size:13px;color:#3A4D5F;padding:0 8px;cursor:pointer;outline:none;
-  transition:border-color .12s,background .12s}
-.df-time select:hover{background:#EFF8FD}
-.df-time select:focus{border-color:var(--acc-line);background:#fff}
-.df-colon{color:#C3D3DF;font-family:var(--mono);font-size:14px}
 .df-time-sel{flex:1}
 .df-time-sel .sel-btn.sel-sm{width:100%;height:34px;justify-content:space-between}
+.df-wheel-head{display:flex;width:168px;justify-content:space-between;padding:0 18px;
+  font-size:10px;color:#A8B8C6;letter-spacing:.06em}
+.df-wheels{position:relative;display:flex;width:168px;height:180px}
+/* 中间那条高亮带：横跨两列，比数字低一层，数字从它上面滚过去 */
+.df-band{position:absolute;left:0;right:0;top:72px;height:36px;border-radius:11px;
+  background:#F1FAF9;border:1px solid #DDF1EE;pointer-events:none;z-index:0}
+.wh{flex:1;position:relative;z-index:1;height:180px}
+.wh-scroll{height:180px;overflow-y:auto;scroll-snap-type:y mandatory;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 32%,#000 68%,transparent 100%);
+  mask-image:linear-gradient(180deg,transparent 0,#000 32%,#000 68%,transparent 100%)}
+.wh-scroll::-webkit-scrollbar{display:none}
+.wh-pad{height:72px}
+.wh-item{display:flex;align-items:center;justify-content:center;width:100%;height:36px;
+  border:0;background:none;font-family:var(--mono);font-size:17px;color:#93A6B6;
+  cursor:pointer;scroll-snap-align:center;transition:color .12s,font-size .12s}
+.wh-item.on{color:var(--acc-d);font-weight:700;font-size:19px}
+@media (hover:hover){.wh-item:hover{color:#3E5568}}
+
 
 .df-foot{display:flex;align-items:center;gap:8px;margin-top:12px}
 .df-foot .today-btn{margin-right:auto;border:0;background:none;padding:6px 2px;font-size:12px;
@@ -1386,6 +1403,9 @@ body.dragging{cursor:grabbing;user-select:none}
 
 .sel-list{background:#fff;border:1px solid #E7F0F8;border-radius:13px;
   box-shadow:0 16px 44px rgba(23,52,80,.16);padding:5px;max-height:300px;overflow:auto;
+  /* 滚到头不要把滚动传给背后的页面 —— 一旦页面动了，
+     外层那个「滚动就关闭」的监听就会把弹层收起来（真机踩过） */
+  overscroll-behavior:contain;
   animation:selIn .14s ease both}
 @keyframes selIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .sel-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
@@ -1396,11 +1416,24 @@ body.dragging{cursor:grabbing;user-select:none}
 .sel-opt.on.hot{background:#D6F2EF}
 .sel-opt svg{flex:none}
 
-/* 手机上改底部抽屉：选项多也不会跑出屏幕 */
-.sel-mask{position:fixed;inset:0;z-index:129;background:rgba(23,52,80,.28);backdrop-filter:blur(2px);
-  display:flex;align-items:flex-end;animation:maskIn .16s ease both}
-.sel-mask .sel-list{width:100%;border-radius:20px 20px 0 0;max-height:70vh;padding:0 8px calc(10px + env(safe-area-inset-bottom));
+/* 手机上改底部抽屉：限高 + 可滚，别把屏幕盖满 */
+/* 用 dvh 而不是 vh：iOS Safari 的 vh 是按「地址栏收起」算的，
+   抽屉贴底时最后几行会被浏览器工具栏压住，怎么滑都露不全。 */
+.sel-mask{position:fixed;inset:0;height:100vh;height:100dvh;z-index:129;background:rgba(23,52,80,.28);
+  backdrop-filter:blur(2px);display:flex;align-items:flex-end;animation:maskIn .16s ease both}
+.sel-mask .sel-list{position:relative;width:100%;border-radius:20px 20px 0 0;display:flex;flex-direction:column;
+  padding:0 8px calc(12px + env(safe-area-inset-bottom));
+  max-height:70vh;max-height:min(54dvh,380px);overflow:hidden;
   animation:sheetUp .22s cubic-bezier(.22,1,.36,1) both;border:0;box-shadow:0 -12px 40px rgba(23,52,80,.18)}
+/* 标题栏固定，选项区自己滚 —— 滚到第 10 个也还知道这是「分钟」 */
+.sel-mask .sel-sheet-head{flex:none;background:#fff;border-radius:20px 20px 0 0;z-index:1}
+.sel-stack{display:flex;flex-direction:column}
+/* 只有手机抽屉里这一层滚动，桌面浮层仍由 .sel-list 自己滚，避免双层滚动条 */
+.sel-mask .sel-stack{overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;touch-action:pan-y;padding-bottom:2px}
+/* 底部渐隐：让「下面还有」看得出来，不至于像被硬切了一刀 */
+.sel-mask .sel-list::after{content:"";position:absolute;left:8px;right:8px;bottom:calc(12px + env(safe-area-inset-bottom));
+  height:32px;background:linear-gradient(rgba(255,255,255,0),#fff 78%);pointer-events:none;border-radius:0 0 14px 14px}
 .sel-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:14px 10px 8px;
   border-bottom:1px solid #F0F6FB;margin-bottom:6px}
 .sel-sheet-head b{font-size:14px;color:#2C4257}

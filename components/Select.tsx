@@ -45,6 +45,7 @@ export default function Select({
 
   const current = options.find((o) => o.value === value);
 
+
   /* 打开时定位弹层：优先向下，下方空间不够就翻到上面 */
   const place = () => {
     const el = btnRef.current;
@@ -102,12 +103,20 @@ export default function Select({
         }
       }
     };
-    const onScroll = () => setOpen(false);
+    /* 注意：这个监听是「捕获阶段」，会在事件传到目标之前先触发 ——
+       所以下拉列表自己内部滚动也会命中它。不排除掉的话，
+       用户每滚一下弹层就被关掉，看起来就是「滚不动」。
+       （2026-11-05 真机上就是这个现象：鼠标滚轮和手机滑动都选不到后面的项） */
+    const onScroll = (e: Event) => {
+      const t = e.target as Node | null;
+      if (t && (boxRef.current?.contains(t) || btnRef.current?.contains(t))) return;
+      setOpen(false);
+    };
     const onResize = () => setOpen(false);
 
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("scroll", onScroll as EventListener, true);
     window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("mousedown", onDown);
@@ -143,20 +152,22 @@ export default function Select({
           </button>
         </div>
       )}
-      {options.map((o, i) => (
-        <button
-          key={o.value}
-          type="button"
-          role="option"
-          aria-selected={o.value === value}
-          className={`sel-opt ${o.value === value ? "on" : ""} ${i === active ? "hot" : ""}`}
-          onMouseEnter={() => setActive(i)}
-          onClick={() => pick(o.value)}
-        >
-          <span>{o.label}</span>
-          {o.value === value && <Check size={13} />}
-        </button>
-      ))}
+      <div className="sel-stack">
+        {options.map((o, i) => (
+          <button
+            key={o.value}
+            type="button"
+            role="option"
+            aria-selected={o.value === value}
+            className={`sel-opt ${o.value === value ? "on" : ""} ${i === active ? "hot" : ""}`}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(o.value)}
+          >
+            <span>{o.label}</span>
+            {o.value === value && <Check size={13} />}
+          </button>
+        ))}
+      </div>
     </div>
   );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Select from "./Select";
 import { format } from "date-fns";
@@ -25,8 +25,74 @@ function splitVal(v: string) {
   return { date, time: time || "09:00" };
 }
 
+/* iOS 那种滚轮：上下滑动，中间一条高亮带，选中的数字落在带子里。
+   为什么不用下拉：24 个小时 + 12 个分钟点两次下拉太啰嗦，
+   滚轮一次就能拨到，而且手指滑动比点选快。 */
+const ITEM_H = 36;
+
+function Wheel({
+  items,
+  value,
+  onChange,
+}: {
+  items: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const settled = useRef(false);
+
+  /* 打开时直接滚到当前值，不要从 00 开始 */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const i = Math.max(0, items.indexOf(value));
+    el.scrollTop = i * ITEM_H;
+    const t = setTimeout(() => { settled.current = true; }, 60);
+    return () => clearTimeout(t);
+    // 只在挂载时定位一次，之后由用户滚动驱动
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onScroll = () => {
+    const el = ref.current;
+    if (!el || !settled.current) return;
+    const i = Math.min(items.length - 1, Math.max(0, Math.round(el.scrollTop / ITEM_H)));
+    const v = items[i];
+    if (v && v !== value) onChange(v);
+  };
+
+  const jump = (it: string) => {
+    const el = ref.current;
+    const i = items.indexOf(it);
+    if (el) el.scrollTo({ top: i * ITEM_H, behavior: "smooth" });
+    onChange(it);
+  };
+
+  return (
+    <div className="wh">
+      <div className="wh-scroll" ref={ref} onScroll={onScroll}>
+        <div className="wh-pad" />
+        {items.map((it) => (
+          <button
+            key={it}
+            type="button"
+            className={`wh-item ${it === value ? "on" : ""}`}
+            onClick={() => jump(it)}
+            tabIndex={-1}
+          >
+            {it}
+          </button>
+        ))}
+        <div className="wh-pad" />
+      </div>
+    </div>
+  );
+}
+
 export default function DateField({ value, onChange, mode = "date", placeholder }: Props) {
   const [open, setOpen] = useState(false);
+  const popRef = useRef<HTMLDivElement>(null);
   const [mobile, setMobile] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const fieldRef = useRef<HTMLButtonElement>(null);
@@ -40,7 +106,8 @@ export default function DateField({ value, onChange, mode = "date", placeholder 
     const r = fieldRef.current?.getBoundingClientRect();
     if (r) {
       const w = 304;
-      const h = mode === "datetime" ? 424 : 340;
+      // 手机走底部抽屉不用算位置；桌面是下拉版，比滚轮矮一截
+      const h = mode === "datetime" ? 430 : 340;
       let left = r.left;
       if (left + w > window.innerWidth - 12) left = window.innerWidth - 12 - w;
       let top = r.bottom + 8;
@@ -71,6 +138,16 @@ export default function DateField({ value, onChange, mode = "date", placeholder 
     }
   };
 
+  /* 内容高度是估算的（日期+滚轮），估算偏小就会探出视口底部。
+     渲染完拿真实高度量一次，超了就整体上移，保证整块都在屏幕里。 */
+  useLayoutEffect(() => {
+    if (!open || mobile) return;
+    const el = popRef.current;
+    if (!el) return;
+    const over = el.getBoundingClientRect().bottom - (window.innerHeight - 12);
+    if (over > 0) setPos((p) => (p ? { ...p, top: Math.max(12, p.top - over) } : p));
+  }, [open, mobile]);
+
   const setTime = (t: string) => {
     if (!date) return;
     onChange(`${date}T${t}`);
@@ -99,28 +176,53 @@ export default function DateField({ value, onChange, mode = "date", placeholder 
         />
       </div>
       {mode === "datetime" && (
-        <div className="df-time">
-          <span className="df-time-label"><Clock size={13} /> 时间</span>
-          <div className="df-time-sel">
-            <Select
-              size="sm"
-              ariaLabel="小时"
-              value={time.slice(0, 2)}
-              onChange={(v) => setTime(`${v}:${time.slice(3)}`)}
-              options={HOURS.map((h) => ({ value: h, label: `${h} 时` }))}
-            />
+        mobile ? (
+          /* 手机上滚轮好拨：一根手指滑到想要的时间，比点两次下拉快 */
+          <div className="df-time">
+            <div className="df-wheel-head">
+              <span>时</span>
+              <span>分</span>
+            </div>
+            <div className="df-wheels">
+              {/* 一条带子横跨两列，跟 iOS 一样；分成两条会有接缝 */}
+              <div className="df-band" aria-hidden />
+              <Wheel
+                items={HOURS}
+                value={time.slice(0, 2)}
+                onChange={(v) => setTime(`${v}:${time.slice(3)}`)}
+              />
+              <Wheel
+                items={MINUTES}
+                value={time.slice(3)}
+                onChange={(v) => setTime(`${time.slice(0, 2)}:${v}`)}
+              />
+            </div>
           </div>
-          <b className="df-colon">:</b>
-          <div className="df-time-sel">
-            <Select
-              size="sm"
-              ariaLabel="分钟"
-              value={time.slice(3)}
-              onChange={(v) => setTime(`${time.slice(0, 2)}:${v}`)}
-              options={MINUTES.map((m) => ({ value: m, label: `${m} 分` }))}
-            />
+        ) : (
+          /* 桌面上还是两个下拉：鼠标点两下就完事，滚轮反而要点着拖 */
+          <div className="df-time">
+            <span className="df-time-label"><Clock size={13} /> 时间</span>
+            <div className="df-time-sel">
+              <Select
+                size="sm"
+                ariaLabel="小时"
+                value={time.slice(0, 2)}
+                onChange={(v) => setTime(`${v}:${time.slice(3)}`)}
+                options={HOURS.map((h) => ({ value: h, label: `${h} 时` }))}
+              />
+            </div>
+            <b className="df-colon">:</b>
+            <div className="df-time-sel">
+              <Select
+                size="sm"
+                ariaLabel="分钟"
+                value={time.slice(3)}
+                onChange={(v) => setTime(`${time.slice(0, 2)}:${v}`)}
+                options={MINUTES.map((m) => ({ value: m, label: `${m} 分` }))}
+              />
+            </div>
           </div>
-        </div>
+        )
       )}
       <div className="df-foot">
         <button type="button" className="today-btn" onClick={() => pick(new Date())}>今天</button>
@@ -176,7 +278,7 @@ export default function DateField({ value, onChange, mode = "date", placeholder 
         ) : (
           <>
             <div className="df-backdrop" onClick={() => setOpen(false)} />
-            <div className="df-pop" style={{ top: pos?.top, left: pos?.left }}>{body}</div>
+            <div className="df-pop" ref={popRef} style={{ top: pos?.top, left: pos?.left }}>{body}</div>
           </>
         ),
         document.body

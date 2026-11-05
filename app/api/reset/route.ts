@@ -11,7 +11,7 @@ export async function POST() {
   const db = getDb();
   db.exec("BEGIN");
   try {
-    for (const table of ["task", "event", "note", "review", "reminder", "external_ref"]) {
+    for (const table of ["task", "event", "note", "review", "reminder", "external_ref", "note_task"]) {
       db.prepare(`DELETE FROM ${table}`).run();
     }
     setSetting("initialized", "1");

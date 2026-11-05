@@ -37,6 +37,7 @@ export type Note = {
   tags: string;
   archived: 0 | 1;
   pinned: 0 | 1;
+  project_id: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -126,6 +127,17 @@ CREATE TABLE IF NOT EXISTS note (
   pinned INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+
+-- 记录 ↔ 任务 的双向关联。
+-- 为什么单独一张表而不是在 note 上加个 task_id：
+-- 一条记录可能引出好几件事，一件事也可能被好几条记录提到（Notion 的 relation 就是多对多）。
+CREATE TABLE IF NOT EXISTS note_task (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_id INTEGER NOT NULL REFERENCES note(id) ON DELETE CASCADE,
+  task_id INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  UNIQUE(note_id, task_id)
 );
 
 CREATE TABLE IF NOT EXISTS review (
@@ -296,10 +308,16 @@ export function getDb(): DatabaseSync {
   // 提醒：日程/任务提前多少分钟提醒
   ensureColumn(db, "task", "remind_min", "INTEGER");
   ensureColumn(db, "event", "remind_min", "INTEGER");
+  // 项目的截止日（想什么时候做完），用来算「还剩几天」
+  ensureColumn(db, "project", "target_date", "TEXT");
+  // 记录挂在哪个项目下
+  ensureColumn(db, "note", "project_id", "INTEGER");
 
   // 依赖上面迁移补的列，所以不能写进 SCHEMA 里（全新库建索引时会找不到 archived 列）
   db.exec("CREATE INDEX IF NOT EXISTS idx_note_pin_upd ON note(pinned, updated_at);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_note_arch ON note(archived);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_notetask_note ON note_task(note_id);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_notetask_task ON note_task(task_id);");
 
   const count = (db.prepare("SELECT COUNT(*) AS n FROM task").get() as { n: number }).n;
   const initialized = (db.prepare("SELECT value FROM setting WHERE key = 'initialized'").get() as { value?: string } | undefined)?.value;

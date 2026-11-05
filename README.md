@@ -26,6 +26,7 @@
 - **任务页收尾区**：看板下面还有「最近七天收尾节奏」（横向进度行）与「刚刚做完的」（最近完成 4 条 + 补位提示），整页一屏铺满、不留大块空白。
 - **登录**：单密码进入，页面与 API 全部需登录；会话 cookie 由密码哈希派生签名，改密码即刻踢掉其他设备。
 - **日期选择**：日历、任务、搜索三处统一用自绘的日历弹层（桌面浮层 / 手机底部抽屉），不再弹系统原生面板（底层是 react-day-picker）；月份可翻、今天高亮、时间按时/分两个下拉选。
+- **所有下拉与勾选**：页面上 13 处选择框全部是自己画的（桌面浮层 / 手机底部抽屉 / 边上打勾），不弹系统菜单；复选框也统一成青绿圆角方块。键盘 `↑` `↓` 可选、`Esc` 关闭。
 - **手机上**：底部 4 个主入口 + 「更多」抽屉（设置、项目、复盘、AI、数据、搜索都在抽屉里）；日历默认日视图、周视图是「每天一卡」；记录页是「列表 ⇄ 编辑」两块屏，点进去写、左上角返回；弹窗垂直居中，不会被底部横条挡住；点输入框不会整页放大。
 - **出错时**：页面崩溃有错误边界（能重试或回首页），不存在的地址是中文 404 页；任何保存/删除失败都会明确告诉你原因，不会静默失败。
 - **设置页**：显示当前镜像的版本号与构建时间（直接读镜像内的 `VERSION` 文件，环境变量改不动它）。
@@ -91,7 +92,8 @@ app/
   api/                  tasks notes events projects reviews search settings export export-db import reminders ai auth
 components/             Dashboard, TasksPage, CalendarApp, NotesApp, ProjectsApp, ReviewApp, AiApp, StatsApp,
                         SettingsApp, Sidebar, TopBar, CommandPalette, QuickCapture, ReminderBell, TaskModal,
-                        DateField, SearchDates, RepeatFields, AppShell, LoginApp, Blobs, Toast, Confirm, DragGhost
+                        DateField, SearchDates, SearchType, Select, RepeatFields, AppShell, LoginApp,
+                        Blobs, Toast, Confirm, DragGhost
 middleware.ts           粗筛 cookie（真实验签在 (app)/layout.tsx，因为 edge 读不到 SQLite）
 lib/auth.ts             scrypt 密码哈希 + HMAC 会话 cookie + requireAuth()
 lib/db.ts               schema、迁移、seed、设置、每日备份

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Select from "./Select";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
@@ -100,13 +101,25 @@ export default function DateField({ value, onChange, mode = "date", placeholder 
       {mode === "datetime" && (
         <div className="df-time">
           <span className="df-time-label"><Clock size={13} /> 时间</span>
-          <select value={time.slice(0, 2)} onChange={(e) => setTime(`${e.target.value}:${time.slice(3)}`)}>
-            {HOURS.map((h) => <option key={h} value={h}>{h} 时</option>)}
-          </select>
+          <div className="df-time-sel">
+            <Select
+              size="sm"
+              ariaLabel="小时"
+              value={time.slice(0, 2)}
+              onChange={(v) => setTime(`${v}:${time.slice(3)}`)}
+              options={HOURS.map((h) => ({ value: h, label: `${h} 时` }))}
+            />
+          </div>
           <b className="df-colon">:</b>
-          <select value={time.slice(3)} onChange={(e) => setTime(`${time.slice(0, 2)}:${e.target.value}`)}>
-            {MINUTES.map((m) => <option key={m} value={m}>{m} 分</option>)}
-          </select>
+          <div className="df-time-sel">
+            <Select
+              size="sm"
+              ariaLabel="分钟"
+              value={time.slice(3)}
+              onChange={(v) => setTime(`${time.slice(0, 2)}:${v}`)}
+              options={MINUTES.map((m) => ({ value: m, label: `${m} 分` }))}
+            />
+          </div>
         </div>
       )}
       <div className="df-foot">

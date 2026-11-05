@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb, nowIso } from "@/lib/db";
+import { getDb, nowIso, row, type Task } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -83,5 +83,7 @@ export async function POST(req: Request) {
       now,
       now
     );
-  return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
+  // 返回整行：客户端要拿它直接插进本地列表（日历里「空闲排任务」就靠这个）
+  const created = row<Task>(db, "SELECT * FROM task WHERE id = ?", Number(info.lastInsertRowid));
+  return NextResponse.json({ id: Number(info.lastInsertRowid), task: created }, { status: 201 });
 }

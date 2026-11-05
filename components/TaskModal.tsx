@@ -8,6 +8,7 @@ import { RepeatField, RemindField } from "./RepeatFields";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
 import { api, errText } from "@/lib/api";
+import Select from "./Select";
 
 const areas: { v: Area; label: string }[] = [
   { v: "work", label: "工作" },
@@ -23,6 +24,7 @@ export default function TaskModal({
   task,
   onDelete,
   projects = [],
+  notes = [],
 }: {
   open: boolean;
   onClose: () => void;
@@ -30,6 +32,8 @@ export default function TaskModal({
   onDelete?: (task: Task) => void | Promise<void>;
   /** 可选的项目列表。传了就显示下拉，不传就只留自由文本。 */
   projects?: { id: number; name: string }[];
+  /** 候选记录（用来建立「记录 ↔ 任务」关联）。 */
+  notes?: { id: number; title: string }[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -48,6 +52,9 @@ export default function TaskModal({
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [tags, setTags] = useState("");
   const [repeat, setRepeat] = useState("none");
+  /* 哪些记录提到了这个任务（完整版：任务侧也能反查） */
+  const [noteLinks, setNoteLinks] = useState<{ id: number; note_id: number; title: string }[]>([]);
+  const [notePick, setNotePick] = useState<number | "">("");
   const [remind, setRemind] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -68,9 +75,41 @@ export default function TaskModal({
     setTags(task?.tags ?? "");
     setRepeat(task?.repeat_rule ?? "none");
     setRemind(task?.remind_min ?? null);
+    setNotePick("");
+    // 打开时把「哪些记录提到了这个任务」拉出来
+    if (task) {
+      api<{ links: { id: number; note_id: number; title: string }[] }>(`/api/links?task=${task.id}`)
+        .then((d) => setNoteLinks(d.links || []))
+        .catch(() => setNoteLinks([]));
+    } else {
+      setNoteLinks([]);
+    }
   }, [open, task]);
 
   if (!open) return null;
+
+  const linkNote = async (noteId: number) => {
+    if (!task) return;
+    try {
+      await api("/api/links", { method: "POST", body: { note_id: noteId, task_id: task.id } });
+      const d = await api<{ links: { id: number; note_id: number; title: string }[] }>(`/api/links?task=${task.id}`);
+      setNoteLinks(d.links || []);
+      setNotePick("");
+      toast("已关联");
+    } catch (e) {
+      toast(errText(e, "没关联上"));
+    }
+  };
+
+  const unlinkNote = async (noteId: number) => {
+    if (!task) return;
+    try {
+      await api("/api/links", { method: "DELETE", body: { note_id: noteId, task_id: task.id } });
+      setNoteLinks((l) => l.filter((x) => x.note_id !== noteId));
+    } catch (e) {
+      toast(errText(e, "没断开，稍后再试"));
+    }
+  };
 
   const save = async () => {
     if (!title.trim()) return;
@@ -146,38 +185,45 @@ export default function TaskModal({
           <div className="two">
             <label>
               分类
-              <select value={area} onChange={(e) => setArea(e.target.value as Area)}>
-                {areas.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}
-              </select>
+              <Select
+                ariaLabel="分类"
+                value={area}
+                onChange={(v) => setArea(v as Area)}
+                options={areas.map((a) => ({ value: a.v, label: a.label }))}
+              />
             </label>
             <label>
               优先级
-              <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-                <option value="high">高</option>
-                <option value="med">中</option>
-                <option value="low">低</option>
-              </select>
+              <Select
+                ariaLabel="优先级"
+                value={priority}
+                onChange={(v) => setPriority(v as Priority)}
+                options={[
+                  { value: "high", label: "高" },
+                  { value: "med", label: "中" },
+                  { value: "low", label: "低" },
+                ]}
+              />
             </label>
           </div>
           <div className="two">
             <label>
               项目
               {projects.length > 0 ? (
-                <select
-                  value={projectId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                <Select
+                  ariaLabel="项目"
+                  value={projectId === null ? "" : String(projectId)}
+                  onChange={(v) => {
                     setProjectId(v ? Number(v) : null);
                     // 同时把名字写进 project 字段，导出/搜索时还能看到文字
                     const hit = projects.find((p) => String(p.id) === v);
                     setProject(hit ? hit.name : "");
                   }}
-                >
-                  <option value="">不归项目</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "不归项目" },
+                    ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+                  ]}
+                />
               ) : (
                 <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="比如：客户 A / 小红书" />
               )}
@@ -236,6 +282,43 @@ export default function TaskModal({
             </p>
           )}
         </div>
+        {/* 「哪些记录提到了这件事」——记录 ↔ 任务 的另一半 */}
+        {task && (
+          <div className="note-links">
+            <div className="nl-row">
+              <span className="nl-label">相关记录</span>
+              {noteLinks.length === 0 ? (
+                <span className="nl-empty">还没有记录提到它。</span>
+              ) : (
+                <div className="nl-chips">
+                  {noteLinks.map((l) => (
+                    <span key={l.id} className="nl-chip">
+                      <span>{l.title || "未命名记录"}</span>
+                      <button onClick={() => unlinkNote(l.note_id)} aria-label="解除关联">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="nl-select">
+                <Select
+                  ariaLabel="关联记录"
+                  value={notePick === "" ? "" : String(notePick)}
+                  onChange={(v) => {
+                    const nv = v ? Number(v) : "";
+                    setNotePick(nv);
+                    if (nv) void linkNote(nv);
+                  }}
+                  options={[
+                    { value: "", label: "+ 关联一条记录…" },
+                    ...notes
+                      .filter((n) => !noteLinks.some((l) => l.note_id === n.id))
+                      .map((n) => ({ value: String(n.id), label: n.title || `记录 #${n.id}` })),
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         {err ? <div className="form-err">{err}</div> : null}
         <div className="acts">
           {task && <button className="b2 danger" onClick={remove}>删除</button>}

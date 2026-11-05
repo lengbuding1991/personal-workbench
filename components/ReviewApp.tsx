@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, errText } from "@/lib/api";
-import { format } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 import { Sparkles, Trash2 } from "lucide-react";
 import type { Review } from "@/lib/db";
 import TopBar from "./TopBar";
@@ -18,6 +18,7 @@ export default function ReviewApp({
   aiReady,
   doneThisWeek,
   notesThisWeek,
+  weekDone = [],
 }: {
   today: string;
   weeklyKey: string;
@@ -27,6 +28,8 @@ export default function ReviewApp({
   aiReady: boolean;
   doneThisWeek: number;
   notesThisWeek: number;
+  /** 本周完成的任务明细（周复盘用，列出来才知道完成了什么） */
+  weekDone?: { id: number; title: string; done_at: string; area: string }[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -135,6 +138,36 @@ export default function ReviewApp({
 
   const list = items.filter((r) => r.type === type);
 
+  /*
+   * 「明天最重要的一件事」写完就该变成一件真事，而不是停在复盘文本里。
+   * 所以第 03 问下面放一个按钮，一键把它存成任务（截止日 = 明天）。
+   */
+  const [toTaskBusy, setToTaskBusy] = useState(false);
+  const [toTaskMsg, setToTaskMsg] = useState("");
+  const makeTask = async () => {
+    const text = tomorrow.trim();
+    if (!text) {
+      setToTaskMsg("先写一件再存");
+      return;
+    }
+    setToTaskBusy(true);
+    setToTaskMsg("");
+    try {
+      const due = format(addDays(new Date(), 1), "yyyy-MM-dd");
+      await api("/api/tasks", {
+        method: "POST",
+        body: { title: text.slice(0, 80), note: `来自${type === "daily" ? "日" : "周"}复盘 ${today}`, due_date: due, area: "work", priority: "high" },
+      });
+      setToTaskMsg("已存成任务，截止明天");
+      setTomorrow("");
+      router.refresh();
+    } catch (e) {
+      setToTaskMsg(errText(e, "没存上，稍后再试"));
+    } finally {
+      setToTaskBusy(false);
+    }
+  };
+
   return (
     <>
       <TopBar crumb="复盘">
@@ -166,9 +199,25 @@ export default function ReviewApp({
           </p>
 
           {type === "weekly" && (
-            <div className="rv-autosum">
-              本周自动统计：完成 <b>{doneThisWeek}</b> 件任务，留下 <b>{notesThisWeek}</b> 条记录。
-            </div>
+            <>
+              <div className="rv-autosum">
+                本周自动统计：完成 <b>{doneThisWeek}</b> 件任务，留下 <b>{notesThisWeek}</b> 条记录。
+              </div>
+              {/* 明细。以前只有两个数字，看不出这周到底完成了哪几件事。 */}
+              {weekDone.length > 0 && (
+                <details className="rv-detail">
+                  <summary>看看这周完成了哪 {weekDone.length} 件事</summary>
+                  <ul>
+                    {weekDone.map((t) => (
+                      <li key={t.id}>
+                        <span className="rv-done-at">{format(parseISO(t.done_at), "M/d")}</span>
+                        <span className="rv-done-title">{t.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </>
           )}
           <div className="review-q">
             <label><b>01</b> {labels.did}</label>
@@ -181,6 +230,13 @@ export default function ReviewApp({
           <div className="review-q">
             <label><b>03</b> {labels.next}</label>
             <textarea value={tomorrow} onChange={(e) => setTomorrow(e.target.value)} placeholder={labels.ph3} />
+            <div className="rv-totask">
+              <button className="b2" onClick={makeTask} disabled={toTaskBusy}>
+                {toTaskBusy ? "存着…" : "存成任务"}
+              </button>
+              <span className="hint2">截止日设为明天</span>
+              {toTaskMsg && <span className="hint2 rv-totask-msg">{toTaskMsg}</span>}
+            </div>
           </div>
           <div className="review-q">
             <label>一句话总结（可选）</label>

@@ -115,10 +115,10 @@ export default function AiApp({ aiReady, settingsHref, reviewHref }: { aiReady: 
               {drafts.map((d, i) => (
                 <label key={i} className="task-row" style={{ marginTop: 6, cursor: "pointer" }}>
                   <input
+                    className="cb"
                     type="checkbox"
                     checked={picked[i]}
                     onChange={(e) => setPicked((p) => p.map((v, j) => (j === i ? e.target.checked : v)))}
-                    style={{ accentColor: "#3AC8C2" }}
                   />
                   <span className="tt">{d.title}</span>
                   <span className="meta">

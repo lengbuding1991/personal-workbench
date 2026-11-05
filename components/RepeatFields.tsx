@@ -2,6 +2,7 @@
 
 import { Repeat, Bell } from "lucide-react";
 import { RULES, ruleLabel } from "@/lib/repeat";
+import Select from "./Select";
 
 /**
  * 重复规则选择。
@@ -16,13 +17,12 @@ export function RepeatField({ value, onChange }: { value: string; onChange: (v: 
         <Repeat size={11} style={{ verticalAlign: -1, marginRight: 4 }} />
         重复
       </span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {RULES.map((r) => (
-          <option key={r} value={r}>
-            {ruleLabel[r]}
-          </option>
-        ))}
-      </select>
+      <Select
+        value={value}
+        onChange={onChange}
+        ariaLabel="重复"
+        options={RULES.map((r) => ({ value: r, label: ruleLabel[r] }))}
+      />
     </label>
   );
 }
@@ -56,16 +56,12 @@ export function RemindField({
         <Bell size={11} style={{ verticalAlign: -1, marginRight: 4 }} />
         提醒
       </span>
-      <select
+      <Select
+        ariaLabel="提醒"
         value={value === null || value === undefined ? "" : String(value)}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-      >
-        {remindOptions.map((o) => (
-          <option key={o.v} value={o.v}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => onChange(v === "" ? null : Number(v))}
+        options={remindOptions.map((o) => ({ value: o.v, label: o.label }))}
+      />
     </label>
   );
 }

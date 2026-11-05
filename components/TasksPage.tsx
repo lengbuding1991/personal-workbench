@@ -12,21 +12,32 @@ import { useConfirm } from "./Confirm";
 import { DragGhostLayer } from "./DragGhost";
 import TopBar from "./TopBar";
 import TaskModal from "./TaskModal";
+import Select from "./Select";
 
 const areaMeta: Record<Area, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
+/** 分类色，和首页/日历里用的是同一套 */
+const areaDot: Record<Area, string> = { work: "#5AA7E8", side: "#A78BFA", media: "#F5AE8E", study: "#6FD6BE", life: "#F6C453" };
+
 const cols = [
   { key: "todo", label: "待办", dot: "#5AA7E8" },
   { key: "doing", label: "进行中", dot: "#F6C453" },
   { key: "done", label: "完成", dot: "#3AC8C2" },
 ] as const;
 
+/** 任务卡片上的项目小色点：项目列表只传了 id/name，颜色按 id 稳定取一个 */
+const PJC = ["#9B8AE6", "#4FD3C8", "#F6C453", "#5AA7E8", "#F0897B", "#8FCB9B"];
+const projectColor = (id: number) => PJC[id % PJC.length];
+
 export default function TasksPage({
   initial,
   projectList = [],
+  noteList = [],
 }: {
   initial: Task[];
   /** 任务弹窗里「项目」下拉用（真正的项目表） */
-  projectList?: { id: number; name: string }[];
+  projectList?: { id: number; name: string; color?: string }[];
+  /** 任务弹窗里「相关记录」下拉用 */
+  noteList?: { id: number; title: string }[];
 }) {
   const params = useSearchParams();
   const confirm = useConfirm();
@@ -35,11 +46,36 @@ export default function TasksPage({
   const [q, setQ] = useState("");
   const [due, setDue] = useState<"all" | "today" | "week" | "overdue">("all");
   const [project, setProject] = useState("all");
+  const [tag, setTag] = useState("all");
+  const [showAllDone, setShowAllDone] = useState(false);
+  /*
+   * 分组方式。项目一多，三列「待办/进行中/完成」里每列都塞满不同项目的事，
+   * 看起来就是一团。所以额外提供「按项目」「按分类」两种视角 —— 同一批任务，
+   * 换个切法而已，数据不动。
+   */
+  const [groupBy, setGroupBy] = useState<"status" | "project" | "area">("status");
   const [modal, setModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<number[]>([]);
   const [hoverCol, setHoverCol] = useState<TaskStatus | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
+  /*
+   * 从搜索结果点进来时带着 ?focus=<id>。
+   * 以前任务页根本不读这个参数，点了搜索结果只会落到普通看板，那条任务在哪完全看不出来 ——
+   * 等于搜了白搜。现在会滚到它、闪一下、临时高亮。
+   */
+  const focusId = Number(params.get("focus") || 0) || null;
+  const [flash, setFlash] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setFlash(focusId);
+    const el = document.querySelector(`[data-task-id="${focusId}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    // 高亮留 2.4 秒就撤掉，否则会一直亮着像坏了
+    const t = window.setTimeout(() => setFlash(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [focusId]);
 
   useEffect(() => {
     const id = params.get("focus");
@@ -51,12 +87,44 @@ export default function TasksPage({
   }, [params, initial]);
 
   const projects = useMemo(() => Array.from(new Set(initial.map((t) => t.project).filter(Boolean))), [initial]);
+  /*
+   * 当前分组下的列。每列带一个 test 函数，用来从 filtered 里挑自己的任务。
+   * 按状态分组时列 key 就是 TaskStatus（拖拽改状态靠它）；
+   * 按项目/分类分组时列 key 是分组值，此时不提供拖拽改状态（语义会乱）。
+   */
+  const groupCols = useMemo(() => {
+    if (groupBy === "status") {
+      return cols.map((c) => ({ key: c.key as string, label: c.label, dot: c.dot, test: (t: Task) => t.status === c.key }));
+    }
+    if (groupBy === "project") {
+      return [
+        ...projectList.map((p) => ({
+          key: `p${p.id}`,
+          label: p.name,
+          dot: p.color || PJC[p.id % PJC.length],
+          test: (t: Task) => t.project_id === p.id,
+        })),
+        { key: "p0", label: "未归项目", dot: "#B8C7D4", test: (t: Task) => !t.project_id },
+      ];
+    }
+    return (Object.keys(areaMeta) as Area[]).map((a) => ({
+      key: `a${a}`,
+      label: areaMeta[a],
+      dot: areaDot[a],
+      test: (t: Task) => t.area === a,
+    }));
+  }, [groupBy, projectList]);
+
   const filtered = useMemo(() => {
     const now = new Date();
     return tasks.filter((t) => {
       if (area !== "all" && t.area !== area) return false;
       if (project !== "all" && t.project !== project) return false;
       if (q && !t.title.includes(q) && !(t.note || "").includes(q) && !(t.tags || "").includes(q)) return false;
+      if (tag !== "all") {
+        const mine = (t.tags || "").split(/[,，\s]+/).filter(Boolean);
+        if (!mine.includes(tag)) return false;
+      }
       if (due !== "all") {
         if (!t.due_date || t.status === "done") return false;
         const d = parseISO(t.due_date);
@@ -66,7 +134,14 @@ export default function TasksPage({
       }
       return true;
     });
-  }, [tasks, area, q, due, project]);
+  }, [tasks, area, q, due, project, tag]);
+
+  /* 所有任务里出现过的标签，用来做筛选（顺带让「标签」这个字段真的有用） */
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of tasks) (t.tags || "").split(/[,，\s]+/).filter(Boolean).forEach((x) => set.add(x));
+    return [...set].sort();
+  }, [tasks]);
 
   const { begin, ghost, didDrag } = usePointerDrag<{ task: Task }>(({ payload, x, y }) => {
     const el = document.elementFromPoint(x, y);
@@ -214,10 +289,35 @@ export default function TasksPage({
         <button className={`chip ${due === "week" ? "on" : ""}`} onClick={() => setDue(due === "week" ? "all" : "week")}>本周</button>
         <button className={`chip ${due === "overdue" ? "on" : ""}`} onClick={() => setDue(due === "overdue" ? "all" : "overdue")}>逾期</button>
         {projects.length > 0 && (
-          <select value={project} onChange={(e) => setProject(e.target.value)} className="chip" style={{ padding: "4px 8px" }}>
-            <option value="all">全部项目</option>
-            {projects.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
+          <Select
+            size="sm"
+            ariaLabel="按项目筛选"
+            value={project}
+            onChange={setProject}
+            options={[{ value: "all", label: "全部项目" }, ...projects.map((p) => ({ value: p, label: p }))]}
+          />
+        )}
+        <span className="grp-switch">
+          <Select
+            size="sm"
+            ariaLabel="分组方式"
+            value={groupBy}
+            onChange={(v) => setGroupBy(v as "status" | "project" | "area")}
+            options={[
+              { value: "status", label: "按状态" },
+              { value: "project", label: "按项目" },
+              { value: "area", label: "按分类" },
+            ]}
+          />
+        </span>
+        {allTags.length > 0 && (
+          <Select
+            size="sm"
+            ariaLabel="按标签筛选"
+            value={tag}
+            onChange={setTag}
+            options={[{ value: "all", label: "全部标签" }, ...allTags.map((x) => ({ value: x, label: `#${x}` }))]}
+          />
         )}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索任务…" style={{ marginLeft: "auto" }} />
       </div>
@@ -247,15 +347,19 @@ export default function TasksPage({
       )}
 
       <div className="kanban kanban-page">
-        {cols.map((c) => {
-          const list = filtered.filter((t) => t.status === c.key);
+        {groupCols.map((c) => {
+          const list = filtered.filter(c.test);
+          const isStatus = groupBy === "status";
+          /* 已完成列会越堆越长，默认只露最近 6 条，想看全部再展开 */
+          const collapsed = c.key === "done" && !showAllDone && list.length > 6;
+          const shown = collapsed ? list.slice(0, 6) : list;
           return (
             <div
               className={`col ${hoverCol === c.key && ghost ? "drop-hot" : ""}`}
               key={c.key}
-              data-status={c.key}
+              data-status={isStatus ? c.key : undefined}
               onPointerMove={(e) => {
-                if (ghost && hoverCol !== c.key) setHoverCol(c.key);
+                if (ghost && isStatus && hoverCol !== c.key) setHoverCol(c.key as TaskStatus);
                 void e;
               }}
               onPointerLeave={() => setHoverCol((h) => (h === c.key ? null : h))}
@@ -266,9 +370,9 @@ export default function TasksPage({
                 <span className="n">{list.length}</span>
                 <button onClick={() => setModal({ open: true, task: null })} aria-label="添加">＋</button>
               </div>
-              {list.map((t) => (
+              {shown.map((t) => (
                 <div
-                  className={`tcard ${t.status === "done" ? "done" : ""} ${picked.includes(t.id) ? "picked" : ""} ${ghost && dragId === t.id ? "lifted" : ""}`}
+                  className={`tcard ${t.status === "done" ? "done" : ""} ${picked.includes(t.id) ? "picked" : ""} ${ghost && dragId === t.id ? "lifted" : ""} ${flash === t.id ? "flash" : ""}`}
                   key={t.id}
                   data-task-id={t.id}
                   onPointerDown={(e) => {
@@ -289,6 +393,15 @@ export default function TasksPage({
                 >
                   <div className="ct">{t.title}</div>
                   <div className="cm">
+                    {t.project_id ? (() => {
+                      const pj = projectList.find((p) => p.id === t.project_id);
+                      return pj ? (
+                        <span className="ct-pj">
+                          <i style={{ background: pj.color || projectColor(pj.id) }} />
+                          {pj.name}
+                        </span>
+                      ) : null;
+                    })() : null}
                     <span
                       style={{
                         color:
@@ -302,7 +415,18 @@ export default function TasksPage({
                     <span className="cat">{areaMeta[t.area]}</span>
                     {t.priority === "high" && <span style={{ color: "#D2795C" }}>· 要紧</span>}
                     {t.status === "doing" && <span style={{ color: "#A97C1B" }}>· 进行中</span>}
+                    {t.estimate_min ? <span className="ct-est">{t.estimate_min}m</span> : null}
                   </div>
+                  {t.tags ? (
+                    <div className="ct-tags">
+                      {t.tags.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 2).map((tg) => (
+                        <span key={tg}>{tg}</span>
+                      ))}
+                      {t.tags.split(",").map((x) => x.trim()).filter(Boolean).length > 2 ? (
+                        <span className="more">+{t.tags.split(",").map((x) => x.trim()).filter(Boolean).length - 2}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {!picking && t.status === "todo" && (
                     <button className="card-act" title="开始做" onClick={(e) => { e.stopPropagation(); setStatus(t, "doing"); }}>
                       <Play size={9} />
@@ -320,6 +444,11 @@ export default function TasksPage({
                   {picking && <span className="pick-dot">{picked.includes(t.id) ? "✓" : ""}</span>}
                 </div>
               ))}
+              {collapsed && (
+                <button className="col-more" onClick={() => setShowAllDone(true)}>
+                  还有 {list.length - 6} 件，展开看全部
+                </button>
+              )}
               {!list.length && (
                 <div className="col-zone">
                   <span className="ec-drop" style={{ borderColor: c.dot }} />
@@ -406,6 +535,7 @@ export default function TasksPage({
         onClose={() => setModal({ open: false, task: null })}
         onDelete={remove}
         projects={projectList}
+        notes={noteList}
       />
     </>
   );

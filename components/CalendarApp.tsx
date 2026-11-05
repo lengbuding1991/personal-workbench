@@ -92,6 +92,10 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const toast = useToast();
   const [list, setList] = useState<EventRow[]>(events);
   const [taskList, setTaskList] = useState<Task[]>(tasks);
+  /* router.refresh() 之后服务端会传新的 props，本地状态要跟上，
+     否则「在别处新建的日程/任务」要等整页刷新才出现 */
+  useEffect(() => { setList(events); }, [events]);
+  useEffect(() => { setTaskList(tasks); }, [tasks]);
   const [offset, setOffset] = useState(0);
   const [view, setView] = useState<"week" | "day">("week");
   const [selected, setSelected] = useState(new Date());
@@ -100,6 +104,8 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const [err, setErr] = useState("");
   const [dragTip, setDragTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [hover, setHover] = useState<{ day: string; mins: number } | null>(null);
+  /* 点空闲块后就地输入任务名，回车即排进日历 */
+  const [quick, setQuick] = useState<{ day: string; from: number; to: number; text: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 手机上 7 列时间轴太挤，默认给日视图
@@ -143,10 +149,29 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
   const tasksOf = (key: string) =>
     taskList.filter((t) => t.status !== "done" && t.due_date && t.due_date.slice(0, 10) === key);
 
+  /*
+   * 安排了时间的任务（scheduled_start 有值）要出现在时间轴上。
+   * 以前日历只认 due_date（截止日），所以「周三 15:00-16:00 要做的事」根本没地方放，
+   * 只能在任务面板里看。日历是按时间安排事情的地方，这条链路必须通。
+   * id 用负数，和日程的 id 区分开（laneLayout 用 id 做 key）。
+   */
+  const scheduledOf = (key: string) =>
+    taskList
+      .filter((t) => t.status !== "done" && !!t.scheduled_start && t.scheduled_start!.slice(0, 10) === key)
+      .map((t) => {
+        const start = minutesOf(parseISO(t.scheduled_start as string));
+        const dur = t.estimate_min && t.estimate_min > 0 ? t.estimate_min : 45;
+        const end = t.scheduled_end ? minutesOf(parseISO(t.scheduled_end)) : start + dur;
+        return { t, start, end: Math.max(start + SNAP, end) };
+      });
+
   /** 某些天全空的时段，用淡淡的「空闲」块填住，避免整列发白 */
   const gapsOf = (key: string, minGap = 120) => {
-    const busy = timedOf(key)
-      .map((x) => [Math.max(x.start, GAP_START), Math.min(x.end, GAP_END)] as [number, number])
+    const busy = [
+      ...timedOf(key).map((x) => [x.start, x.end] as [number, number]),
+      ...scheduledOf(key).map((x) => [x.start, x.end] as [number, number]),
+    ]
+      .map((x) => [Math.max(x[0], GAP_START), Math.min(x[1], GAP_END)] as [number, number])
       .filter(([st, en]) => en > st)
       .sort((a, b) => a[0] - b[0]);
     const out: { from: number; to: number }[] = [];
@@ -367,6 +392,37 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
     } catch (e) {
       // 以前这里没有 catch：保存失败弹窗照关，用户以为加上了
       setErr(errText(e, "保存失败，请重试"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* 空闲块里就地排一件事：直接建成任务并带上安排时间，日历立刻能看到 */
+  const quickAdd = async () => {
+    if (!quick || !quick.text.trim()) return;
+    setSaving(true);
+    try {
+      const start = `${quick.day}T${hhmm(quick.from)}`;
+      // 默认只占 1 小时（空档可能是 5 小时，全占掉不现实），空档更短就占满
+      const mins = Math.min(60, quick.to - quick.from);
+      const end = `${quick.day}T${hhmm(quick.from + mins)}`;
+      const data = await api<{ task: Task }>("/api/tasks", {
+        method: "POST",
+        body: {
+          title: quick.text.trim(),
+          scheduled_start: start,
+          scheduled_end: end,
+          estimate_min: mins,
+          area: "work",
+          priority: "med",
+        },
+      });
+      if (data.task) setTaskList((l) => [...l, { ...data.task }]);
+      toast(`「${data.task?.title ?? quick.text.trim()}」排在 ${hhmm(quick.from)}`);
+      setQuick(null);
+      router.refresh();
+    } catch (e) {
+      toast(errText(e, "没排上，再试一次"));
     } finally {
       setSaving(false);
     }
@@ -598,7 +654,12 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
             {days.map((d) => {
               const key = format(d, "yyyy-MM-dd");
               const items = timedOf(key);
-              const layout = laneLayout(items.map((x) => ({ id: x.e.id, start: x.start, end: x.end })));
+              const sched = scheduledOf(key);
+              // 日程和任务一起排 lane，否则两条重叠时它们会画在同一格上
+              const layout = laneLayout([
+                ...items.map((x) => ({ id: x.e.id, start: x.start, end: x.end })),
+                ...sched.map((x) => ({ id: -x.t.id, start: x.start, end: x.end })),
+              ]);
               const isToday = isSameDay(d, now);
               return (
                 <div
@@ -637,8 +698,16 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
                       key={`g-${g.from}`}
                       className="cal2-free"
                       style={{ top: (g.from - DAY_START * 60) / 60 * HOUR + 2, height: (g.to - g.from) / 60 * HOUR - 4 }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // 点空闲块 → 就地排一件事（不用先跑去任务面板）
+                        setQuick({ day: key, from: g.from, to: g.to, text: "" });
+                      }}
+                      title="点这里把一件事排进这段空闲"
                     >
                       <span>空闲 {Math.round((g.to - g.from) / 60 * 10) / 10}h</span>
+                      <em className="cf-add">＋ 排一件事</em>
                     </div>
                   ))}
                   {hover?.day === key && (
@@ -685,6 +754,29 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
                             startEventDrag(ev, e, start, end - start, dayIdx, true);
                           }}
                         />
+                      </div>
+                    );
+                  })}
+                  {sched.map(({ t, start, end }) => {
+                    const lay = layout.get(-t.id) ?? { lane: 0, lanes: 1 };
+                    const top = (start - DAY_START * 60) / 60 * HOUR;
+                    const h = Math.max(22, (end - start) / 60 * HOUR - 3);
+                    const w = 100 / lay.lanes;
+                    return (
+                      <div
+                        key={`st-${t.id}`}
+                        className="cal2-ev cal2-sched"
+                        style={{ top, height: h, left: `calc(${w * lay.lane}% + 3px)`, width: `calc(${w}% - 6px)` }}
+                        onPointerDown={(ev) => ev.stopPropagation()}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          // 跳到任务页并高亮那条任务（任务页认 ?focus=）
+                          router.push(`/tasks?focus=${t.id}`);
+                        }}
+                        title={t.title}
+                      >
+                        <b>✓ {t.title}</b>
+                        {h >= 34 && <span>{hhmm(start)}–{hhmm(end)}</span>}
                       </div>
                     );
                   })}
@@ -761,6 +853,34 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
         </div>
       )}
 
+      {quick && (
+        <div className="modal qk" onClick={() => setQuick(null)}>
+          <div className="qk-card" onClick={(e) => e.stopPropagation()}>
+            <div className="qk-head">
+              <b>排进这段空闲</b>
+              <span>
+                {format(parseISO(quick.day), "M月d日")} · {hhmm(quick.from)}–{hhmm(quick.to)}
+              </span>
+            </div>
+            <input
+              className="qk-input"
+              autoFocus
+              value={quick.text}
+              placeholder="要做的这件事…"
+              onChange={(e) => setQuick({ ...quick, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void quickAdd();
+                if (e.key === "Escape") setQuick(null);
+              }}
+            />
+            <div className="qk-acts">
+              <button className="b2" onClick={() => setQuick(null)}>取消</button>
+              <button className="b1" onClick={() => void quickAdd()} disabled={!quick.text.trim() || saving}>排进去</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {draft && (
         <div className="modal" onClick={() => setDraft(null)}>
           <div className="sheet" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
@@ -774,10 +894,10 @@ export default function CalendarApp({ events, tasks }: { events: EventRow[]; tas
               </label>
               <label style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <input
+                  className="cb"
                   type="checkbox"
                   checked={draft.allDay}
                   onChange={(e) => setDraft({ ...draft, allDay: e.target.checked })}
-                  style={{ width: 14, height: 14, accentColor: "#3AC8C2" }}
                 />
                 全天事件
               </label>

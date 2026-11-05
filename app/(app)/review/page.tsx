@@ -3,6 +3,9 @@ import { getDb, rows, row, type Review, type Task, type Note } from "@/lib/db";
 import { aiReady } from "@/lib/ai";
 import ReviewApp from "@/components/ReviewApp";
 
+/** 本周完成的任务明细（给复盘页列出来用） */
+export type DoneTask = { id: number; title: string; done_at: string; area: string };
+
 export const dynamic = "force-dynamic";
 
 export default function Page() {
@@ -22,7 +25,10 @@ export default function Page() {
     db,
     "SELECT id,updated_at FROM note WHERE trim(title)<>'' OR trim(content)<>''"
   );
-  const doneThisWeek = tasks.filter((t) => t.done_at && isWithinInterval(parseISO(t.done_at), { start: ws, end: we })).length;
+  const weekDone = tasks.filter(
+    (t) => t.done_at && isWithinInterval(parseISO(t.done_at), { start: ws, end: we })
+  ) as DoneTask[];
+  const doneThisWeek = weekDone.length;
   const notesThisWeek = notes.filter((n) => isWithinInterval(parseISO(n.updated_at), { start: ws, end: we })).length;
   return (
     <ReviewApp
@@ -34,6 +40,7 @@ export default function Page() {
       aiReady={aiReady()}
       doneThisWeek={doneThisWeek}
       notesThisWeek={notesThisWeek}
+      weekDone={weekDone.map((t) => ({ id: t.id, title: t.title, done_at: t.done_at, area: t.area }))}
     />
   );
 }

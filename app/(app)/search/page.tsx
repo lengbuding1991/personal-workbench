@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { search, type Hit } from "@/lib/search";
 import TopBar from "@/components/TopBar";
 import SearchDates from "@/components/SearchDates";
+import SearchType from "@/components/SearchType";
 
 export const dynamic = "force-dynamic";
 
@@ -50,13 +51,7 @@ export default async function Page({
 
       <form className="search-form" action="/search">
         <input name="q" defaultValue={q} placeholder="关键词，空格分隔多个…" className="sf-q" />
-        <select name="type" defaultValue={type} className="sf-sel">
-          <option value="all">全部类型</option>
-          <option value="task">任务</option>
-          <option value="note">记录</option>
-          <option value="event">日程</option>
-          <option value="review">复盘</option>
-        </select>
+        <SearchType value={type} />
         <SearchDates from={from} to={to} />
         <button className="b1" type="submit">搜索</button>
       </form>

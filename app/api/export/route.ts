@@ -9,7 +9,7 @@ export async function GET() {
   const gate = await requireAuth();
   if (gate) return gate;
   const db = getDb();
-  const tables = ["task", "event", "note", "review", "project", "external_ref"];
+  const tables = ["task", "event", "note", "review", "project", "note_task", "external_ref"];
   const data: Record<string, unknown> = {
     exported_at: new Date().toISOString(),
     version: 1,

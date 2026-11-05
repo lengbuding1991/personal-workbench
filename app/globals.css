@@ -522,6 +522,11 @@ body.dragging{cursor:grabbing;user-select:none}
 .notes-foot .nf-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#7FE3D6,#3AC8C2)}
 .notes-foot .nf-tags{display:flex;flex-wrap:wrap;gap:5px}
 .notes-foot .nf-tags span{font-size:9.5px;color:#4E6C86;background:#F2F8FD;border:1px solid #E4F1FA;border-radius:8px;padding:4px 10px;line-height:1;display:inline-block}
+/* 标签现在可点（按标签筛选），所以是按钮不是 span */
+.notes-foot .nf-tag{font-size:9.5px;color:#4E6C86;background:#F2F8FD;border:1px solid #E4F1FA;border-radius:8px;
+  padding:4px 10px;line-height:1;display:inline-block;cursor:pointer;font-family:inherit;transition:.14s}
+.notes-foot .nf-tag:hover{border-color:#BEE3E0;color:#17A8A4;background:#EAF8F6}
+.notes-foot .nf-tag.on{background:var(--acc-d);border-color:var(--acc-d);color:#fff;font-weight:600}
 .notes-side .search{margin-bottom:8px}
 .note-row{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:11px;padding:9px 10px;margin-bottom:2px}
 .note-row:hover{background:#F6FBFE}
@@ -1180,6 +1185,8 @@ body.dragging{cursor:grabbing;user-select:none}
 .df-time select:hover{background:#EFF8FD}
 .df-time select:focus{border-color:var(--acc-line);background:#fff}
 .df-colon{color:#C3D3DF;font-family:var(--mono);font-size:14px}
+.df-time-sel{flex:1}
+.df-time-sel .sel-btn.sel-sm{width:100%;height:34px;justify-content:space-between}
 
 .df-foot{display:flex;align-items:center;gap:8px;margin-top:12px}
 .df-foot .today-btn{margin-right:auto;border:0;background:none;padding:6px 2px;font-size:12px;
@@ -1293,8 +1300,10 @@ body.dragging{cursor:grabbing;user-select:none}
 .pj-task b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .pj-task em{font-style:normal;font-family:var(--mono);font-size:9px;color:#B6C8D6;flex:none}
 .pj-tick{width:13px;height:13px;border-radius:50%;border:1.5px solid #DDE9F3;flex:none;
-  display:grid;place-items:center;color:#fff}
+  display:grid;place-items:center;color:#fff;cursor:pointer;padding:0;background:#fff;transition:.14s}
+.pj-tick:hover{border-color:#7FD8CE;transform:scale(1.12)}
 .pj-tick.on{background:linear-gradient(140deg,#4FD3C8,#33A9D6);border-color:transparent}
+.pj-tick:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(58,200,194,.2)}
 .pj-empty{margin:2px 0;font-size:10px;color:#B6C8D6}
 .pj-sec{margin:20px 0 10px;font-size:10.5px;color:#A8B8C6;font-weight:600;letter-spacing:.04em}
 .pj-hint{margin:16px 0 0;font-size:10.5px;color:#A8B8C6}
@@ -1357,3 +1366,160 @@ body.dragging{cursor:grabbing;user-select:none}
   .pj-stat-n{width:70px}
   .pj-stat-num{width:58px}
 }
+
+/* ============ 统一下拉选择（替代原生 select）============
+   原生 select 弹出的选项层是操作系统画的，CSS 改不了。
+   下面把触发按钮和选项列表都自己实现，桌面是浮层、手机是底部抽屉。 */
+
+.sel-btn{display:inline-flex;align-items:center;justify-content:space-between;gap:6px;
+  border:1px solid var(--line);background:#F8FBFE;border-radius:11px;color:#33485D;
+  font-family:inherit;cursor:pointer;outline:none;transition:.14s;text-align:left}
+.sel-btn.sel-md{height:37px;padding:0 11px;font-size:12px;width:100%}
+.sel-btn.sel-sm{height:24px;padding:0 8px;font-size:10px;border-radius:8px;background:#fff;color:#5C7086}
+.sel-btn:hover{border-color:#CFE4F4;background:#F2F8FD}
+.sel-btn.open{border-color:var(--acc-line);background:#fff;box-shadow:0 0 0 3px rgba(58,200,194,.09)}
+.sel-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-chev{flex:none;color:#8FA2B3;transition:transform .16s}
+.sel-btn.open .sel-chev{transform:rotate(180deg);color:var(--acc-d)}
+
+.sel-list{background:#fff;border:1px solid #E7F0F8;border-radius:13px;
+  box-shadow:0 16px 44px rgba(23,52,80,.16);padding:5px;max-height:300px;overflow:auto;
+  animation:selIn .14s ease both}
+@keyframes selIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.sel-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+  border:0;background:none;border-radius:9px;padding:8px 10px;font-size:12px;font-family:inherit;
+  color:#3A4D5F;cursor:pointer;text-align:left;transition:background .1s}
+.sel-opt.hot{background:#F2F8FD}
+.sel-opt.on{color:var(--acc-d);font-weight:600;background:var(--acc-soft)}
+.sel-opt.on.hot{background:#D6F2EF}
+.sel-opt svg{flex:none}
+
+/* 手机上改底部抽屉：选项多也不会跑出屏幕 */
+.sel-mask{position:fixed;inset:0;z-index:129;background:rgba(23,52,80,.28);backdrop-filter:blur(2px);
+  display:flex;align-items:flex-end;animation:maskIn .16s ease both}
+.sel-mask .sel-list{width:100%;border-radius:20px 20px 0 0;max-height:70vh;padding:0 8px calc(10px + env(safe-area-inset-bottom));
+  animation:sheetUp .22s cubic-bezier(.22,1,.36,1) both;border:0;box-shadow:0 -12px 40px rgba(23,52,80,.18)}
+.sel-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:14px 10px 8px;
+  border-bottom:1px solid #F0F6FB;margin-bottom:6px}
+.sel-sheet-head b{font-size:14px;color:#2C4257}
+.sel-sheet-head button{border:0;background:none;font-size:14px;color:#17A8A4;font-weight:600;cursor:pointer;font-family:inherit}
+.sel-mask .sel-opt{padding:13px 12px;font-size:14px;border-radius:10px}
+
+/* ============ 复选框：统一成青绿圆角方块 ============
+   原生 checkbox 在 mac / Windows / Android 上长得都不一样，
+   accent-color 只能改填充色，圆角和勾的形状还是系统定的。
+   这里用 appearance:none 自己画，三端一致。 */
+
+input[type="checkbox"].cb{
+  appearance:none;-webkit-appearance:none;
+  width:15px;height:15px;flex:none;margin:0;
+  border:1.5px solid #CBDCE8;border-radius:4.5px;background:#fff;
+  cursor:pointer;display:inline-grid;place-content:center;
+  transition:.14s;position:relative;top:0;
+}
+input[type="checkbox"].cb:hover{border-color:var(--acc-line);background:#F6FCFB}
+input[type="checkbox"].cb:checked{background:linear-gradient(140deg,#4FD3C8,#33A9D6);border-color:transparent}
+input[type="checkbox"].cb::after{
+  content:"";width:8px;height:4.5px;
+  border-left:2px solid #fff;border-bottom:2px solid #fff;
+  transform:rotate(-45deg) scale(0);transition:transform .14s;margin-top:-2px;
+}
+input[type="checkbox"].cb:checked::after{transform:rotate(-45deg) scale(1)}
+input[type="checkbox"].cb:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(58,200,194,.18)}
+
+/* 从搜索结果跳进来时，目标卡片闪一下，否则不知道该看哪 */
+.tcard.flash{animation:tcardFlash 1.2s ease 2;border-color:var(--acc-line)}
+@keyframes tcardFlash{
+  0%,100%{box-shadow:0 0 0 0 rgba(58,200,194,0)}
+  50%{box-shadow:0 0 0 3px rgba(58,200,194,.28)}
+}
+@media (prefers-reduced-motion:reduce){
+  .tcard.flash{animation:none;border-color:var(--acc-d);box-shadow:0 0 0 2px rgba(58,200,194,.3)}
+}
+
+/* ===== 任务卡片：项目色点 / 预估时长 / 标签 ===== */
+.ct-pj{display:inline-flex;align-items:center;gap:4px;margin-right:2px;
+  font-size:9.5px;color:#5E7183;max-width:96px}
+.ct-pj i{width:6px;height:6px;border-radius:2px;flex:none;display:block}
+.ct-pj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ct-est{font-family:var(--mono);font-size:9px;color:#A0B2C1;margin-left:auto;flex:none}
+.ct-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+.ct-tags span{padding:1px 6px;border-radius:6px;background:#F1F7FC;
+  font-size:9px;color:#7590A5;line-height:1.6}
+.ct-tags span.more{background:transparent;color:#A8B8C6;padding-left:2px}
+
+/* 日历时间轴上的「任务块」：带 ✓ 前缀，跟日程块区分开。
+   注意类名不能叫 .cal2-task —— 那个类已被「全天行里的任务小卡片」占用。 */
+.cal2-ev.cal2-sched{
+  background:repeating-linear-gradient(135deg,#F1FBF9 0 6px,#E7F6F3 6px 12px);
+  border:1px dashed #7FD8CE;color:#1B7F76;
+}
+.cal2-ev.cal2-sched b{color:#12756C}
+.cal2-ev.cal2-sched span{color:#3E9A92}
+.cal2-ev.cal2-sched:hover{border-color:#3FBFB2;background:repeating-linear-gradient(135deg,#EAF8F6 0 6px,#DCF1ED 6px 12px)}
+
+/* 周复盘里「这周完成了哪几件事」的明细，折叠起来，点开才占地方 */
+.rv-detail{margin:8px 0 14px;border:1px solid #E6F1F9;border-radius:11px;background:#FAFCFE;overflow:hidden}
+.rv-detail>summary{cursor:pointer;padding:9px 12px;font-size:11px;color:#4E6C86;font-weight:600;list-style:none;
+  display:flex;align-items:center;gap:6px;user-select:none}
+.rv-detail>summary::-webkit-details-marker{display:none}
+.rv-detail>summary::before{content:"›";display:inline-block;transition:transform .18s;font-size:14px;color:#8FA2B3}
+.rv-detail[open]>summary::before{transform:rotate(90deg)}
+.rv-detail>summary:hover{background:#F3F9FD;color:#17A8A4}
+.rv-detail ul{list-style:none;margin:0;padding:0 0 8px}
+.rv-detail li{display:flex;gap:9px;align-items:baseline;padding:5px 12px;font-size:12px;color:#33485A}
+.rv-detail li:hover{background:#F3F9FD}
+.rv-done-at{flex:none;font-family:var(--mono);font-size:10px;color:#93A7B8;min-width:28px}
+.rv-done-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 复盘第 03 问下面的「存成任务」 */
+.rv-totask{display:flex;align-items:center;gap:9px;margin-top:7px;flex-wrap:wrap}
+.rv-totask .b2{font-size:11px;padding:5px 11px;border-radius:9px}
+.rv-totask-msg{color:#17A8A4;font-weight:600}
+
+/* 笔记编辑器的关联区：所属项目 + 关联任务 + 变成任务 */
+.note-links{margin-top:10px;border:1px solid #E9F2F9;border-radius:11px;background:#FAFCFE;padding:9px 11px;
+  display:flex;flex-direction:column;gap:7px}
+.nl-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nl-label{font-size:10.5px;color:#8FA2B3;font-weight:600;flex:none}
+.nl-select{max-width:230px;flex:1;min-width:150px}
+.nl-select .sel-btn{width:100%;justify-content:space-between;font-size:11px;height:28px;padding:0 8px;border-radius:8px}
+.nl-empty{font-size:11px;color:#A9BCCA;flex:1;min-width:120px}
+.nl-chips{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:140px}
+.nl-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#1B7F76;background:#EAF8F6;
+  border:1px solid #C9EDE8;border-radius:8px;padding:3px 5px 3px 9px;line-height:1.4;max-width:230px}
+.nl-chip.done{color:#8FA2B3;background:#F4F8FB;border-color:#E4EEF6;text-decoration:line-through}
+.nl-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl-chip button{border:0;background:transparent;color:#8FA2B3;cursor:pointer;font-size:13px;line-height:1;padding:0 3px;border-radius:4px}
+.nl-chip button:hover{color:#D4705F;background:#FDF0EE}
+
+/* 项目卡：还剩几天 + 本周完成 + 最近记下的 */
+.pj-week{font-style:normal;color:#17A8A4;font-weight:700}
+.pj-due{margin-top:7px;font-size:10px;color:#7C8F9F;display:flex;align-items:center;gap:6px}
+.pj-due em{font-style:normal;font-family:var(--mono);font-size:9px;color:#B6C8D6}
+.pj-due.soon{color:#C68A2E;font-weight:600}
+.pj-due.over{color:#D4705F;font-weight:600}
+.pj-notes{margin-top:9px;border-top:1px dashed #E4EEF6;padding-top:8px}
+.pj-notes-head{font-size:10px;color:#A8B8C6;font-weight:600;margin-bottom:4px}
+.pj-note-row{display:flex;align-items:baseline;gap:8px;font-size:11px;color:#4E6C86;padding:2px 0}
+.pj-note-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.pj-note-row em{font-style:normal;font-family:var(--mono);font-size:9px;color:#B6C8D6;flex:none}
+
+/* 空闲块里就地排任务的小弹层 */
+.cal2-free .cf-add{display:block;margin-top:2px;font-size:9px;font-style:normal;color:#5FBDB2;opacity:0;transition:opacity .15s}
+.cal2-free:hover .cf-add{opacity:1}
+.modal.qk{align-items:center;background:rgba(23,52,80,.26)}
+.qk-card{width:min(380px,100%);background:#fff;border-radius:16px;padding:16px 16px 14px;
+  box-shadow:0 24px 70px rgba(23,52,80,.20);display:flex;flex-direction:column;gap:10px}
+.qk-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.qk-head b{font-size:13.5px;color:#22384C}
+.qk-head span{font-size:10.5px;color:#8CA0B2;font-family:var(--mono)}
+.qk-input{width:100%;height:38px;border:1px solid var(--line);border-radius:10px;padding:0 11px;
+  font-size:13px;outline:none;background:#FBFDFF}
+.qk-input:focus{border-color:var(--acc-line);box-shadow:0 0 0 3px rgba(58,200,194,.12)}
+.qk-acts{display:flex;gap:8px;justify-content:flex-end}
+
+/* 已完成列「展开全部」 */
+.col-more{width:100%;margin-top:2px;padding:7px 10px;border:1px dashed #DDE9F3;border-radius:10px;
+  background:transparent;color:#7C93A8;font-size:10.5px;cursor:pointer;transition:.14s}
+.col-more:hover{background:#F4FAFD;border-color:#BFE0F0;color:#4E7C99}

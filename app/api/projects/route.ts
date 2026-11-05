@@ -11,6 +11,7 @@ const Create = z.object({
   color: z.string().max(20).optional().default("#9B8AE6"),
   area: z.enum(["work", "side", "media", "study", "life"]).optional().default("work"),
   note: z.string().max(500).optional().default(""),
+  target_date: z.string().max(30).nullable().optional(),
 });
 
 export type Project = {
@@ -22,6 +23,8 @@ export type Project = {
   note: string;
   sort: number;
   created_at: string;
+  /** 想什么时候做完（可空） */
+  target_date?: string | null;
 };
 
 export async function GET() {
@@ -48,8 +51,8 @@ export async function POST(req: Request) {
   const db = getDb();
   const now = nowIso();
   const info = db
-    .prepare("INSERT INTO project (name,color,area,status,note,sort,created_at) VALUES (?,?,?,?,?,?,?)")
-    .run(p.name, p.color, p.area, "active", p.note ?? "", 0, now);
+    .prepare("INSERT INTO project (name,color,area,status,note,sort,target_date,created_at) VALUES (?,?,?,?,?,?,?,?)")
+    .run(p.name, p.color, p.area, "active", p.note ?? "", 0, p.target_date ?? null, now);
   const created = row<Project>(db, "SELECT * FROM project WHERE id=?", Number(info.lastInsertRowid));
   return NextResponse.json({ project: created }, { status: 201 });
 }

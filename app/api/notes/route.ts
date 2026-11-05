@@ -13,6 +13,7 @@ const Create = z.object({
   tags: z.string().max(300).optional().default(""),
   archived: z.union([z.literal(0), z.literal(1)]).optional().default(0),
   pinned: z.union([z.literal(0), z.literal(1)]).optional().default(0),
+  project_id: z.number().int().positive().nullable().optional(),
 });
 
 export async function GET(req: Request) {
@@ -37,8 +38,8 @@ export async function POST(req: Request) {
   const t = parsed.data;
   const now = nowIso();
   const info = getDb()
-    .prepare("INSERT INTO note (title,content,source,tags,archived,pinned,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)")
-    .run(t.title ?? "", t.content ?? "", t.source ?? "灵感", t.tags ?? "", t.archived ?? 0, t.pinned ?? 0, now, now);
+    .prepare("INSERT INTO note (title,content,source,tags,archived,pinned,project_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(t.title ?? "", t.content ?? "", t.source ?? "灵感", t.tags ?? "", t.archived ?? 0, t.pinned ?? 0, t.project_id ?? null, now, now);
   const note = getDb().prepare("SELECT * FROM note WHERE id=?").get(Number(info.lastInsertRowid));
   return NextResponse.json({ note }, { status: 201 });
 }

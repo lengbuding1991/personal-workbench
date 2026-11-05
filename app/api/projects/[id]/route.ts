@@ -13,6 +13,7 @@ const Patch = z.object({
   status: z.enum(["active", "paused", "archived"]).optional(),
   note: z.string().max(500).optional(),
   sort: z.number().int().optional(),
+  target_date: z.string().max(30).nullable().optional(),
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -26,10 +27,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const db = getDb();
   const fields: string[] = [];
-  const args: (string | number)[] = [];
+  const args: (string | number | null)[] = [];
   for (const [k, v] of Object.entries(parsed.data)) {
     fields.push(`${k} = ?`);
-    args.push(v as string | number);
+    args.push(v as string | number | null);
   }
   if (!fields.length) return NextResponse.json({ ok: true });
   args.push(n);

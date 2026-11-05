@@ -10,10 +10,23 @@ import TopBar from "./TopBar";
 import { useConfirm } from "./Confirm";
 import { useToast } from "./Toast";
 import { api, errText } from "@/lib/api";
+import Select from "./Select";
 
 const sources = ["灵感", "工作", "学习", "复盘"];
 
-export default function NotesApp({ initial }: { initial: Note[] }) {
+type LinkRow = { id: number; task_id: number; title: string; status: string; due_date: string | null; priority: string };
+
+export default function NotesApp({
+  initial,
+  projects = [],
+  allTasks = [],
+}: {
+  initial: Note[];
+  /** 项目下拉用 */
+  projects?: { id: number; name: string }[];
+  /** 「关联任务」的下拉用（可关联的全部任务） */
+  allTasks?: { id: number; title: string; status: string }[];
+}) {
   const confirm = useConfirm();
   const toast = useToast();
   const router = useRouter();
@@ -26,7 +39,13 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
   const [content, setContent] = useState("");
   const [source, setSource] = useState("灵感");
   const [tagText, setTagText] = useState("");
+  /* 点标签 = 按这个标签筛选。标签以前只是展示的一串字，点它没任何反应。 */
+  const [tagFilter, setTagFilter] = useState<string>("");
   const [preview, setPreview] = useState(false);
+  /* 这条记录关联了哪些任务（完整版：记录→任务 和 任务→记录 两头都能看） */
+  const [links, setLinks] = useState<LinkRow[]>([]);
+  const [linkPick, setLinkPick] = useState<number | "">("");
+  const [linkBusy, setLinkBusy] = useState(false);
   const [saved, setSaved] = useState<string>("");
   // 手机上列表和编辑是两块屏：false=看列表，true=写这条。
   // 桌面上两块并排显示，这个值不起作用（只在 CSS 的窄屏断点里生效）。
@@ -62,6 +81,69 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
     }
     // 只在切换记录时重置，不随 notes 内容变化重跑，避免清掉「已保存」提示
   }, [activeId]);
+
+  // 切换记录时加载它关联的任务
+  useEffect(() => {
+    if (!activeId) {
+      setLinks([]);
+      return;
+    }
+    let alive = true;
+    api<{ links: LinkRow[] }>(`/api/links?note=${activeId}`)
+      .then((d) => {
+        if (alive) setLinks(d.links || []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [activeId, notes]);
+
+  /** 关联一个任务 */
+  const addLink = async (taskId: number) => {
+    if (!activeId) return;
+    setLinkBusy(true);
+    try {
+      await api("/api/links", { method: "POST", body: { note_id: activeId, task_id: taskId } });
+      const d = await api<{ links: LinkRow[] }>(`/api/links?note=${activeId}`);
+      setLinks(d.links || []);
+      setLinkPick("");
+      toast("已关联");
+    } catch (e) {
+      toast(errText(e, "没关联上"));
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  /** 解除关联 */
+  const removeLink = async (taskId: number) => {
+    if (!activeId) return;
+    try {
+      await api("/api/links", { method: "DELETE", body: { note_id: activeId, task_id: taskId } });
+      setLinks((l) => l.filter((x) => x.task_id !== taskId));
+    } catch (e) {
+      toast(errText(e, "没断开，稍后再试"));
+    }
+  };
+
+  /** 这条记录直接变成一件任务（不用先去任务面板建） */
+  const toTask = async () => {
+    if (!active) return;
+    setLinkBusy(true);
+    try {
+      const title = (active.title || content.trim().split("\n")[0] || "新的任务").slice(0, 120);
+      await api("/api/tasks", {
+        method: "POST",
+        body: { title, note: `来自记录：${active.title || "未命名"}`, area: active.project_id ? "work" : "work", priority: "med" },
+      });
+      toast("已存成任务");
+    } catch (e) {
+      toast(errText(e, "没存上"));
+    } finally {
+      setLinkBusy(false);
+    }
+  };
 
   const filtered = notes
     .filter(
@@ -311,8 +393,15 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
             </div>
             {allTags.length > 0 && (
               <div className="nf-tags">
-                {allTags.slice(0, 4).map((t) => (
-                  <span key={t}>#{t}</span>
+                {allTags.slice(0, 6).map((t) => (
+                  <button
+                    key={t}
+                    className={`nf-tag ${tagFilter === t ? "on" : ""}`}
+                    onClick={() => setTagFilter(tagFilter === t ? "" : t)}
+                    title={tagFilter === t ? "取消筛选" : `只看带「${t}」的记录`}
+                  >
+                    #{t}
+                  </button>
                 ))}
               </div>
             )}
@@ -364,6 +453,65 @@ export default function NotesApp({ initial }: { initial: Note[] }) {
                   placeholder="想到什么就写什么，不用整理…支持 Markdown"
                 />
               )}
+
+              {/* 关联区：这条记录属于哪个项目、关联了哪些任务、能不能直接变成任务 */}
+              <div className="note-links">
+                <div className="nl-row">
+                  <span className="nl-label">所属项目</span>
+                  <div className="nl-select">
+                    <Select
+                      ariaLabel="所属项目"
+                      value={String(active.project_id ?? "")}
+                      onChange={async (v) => {
+                        const nv = v ? Number(v) : null;
+                        const old = active.project_id;
+                        setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, project_id: nv } : n)));
+                        try {
+                          await api(`/api/notes/${active.id}`, { method: "PATCH", body: { project_id: nv } });
+                        } catch (e) {
+                          setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, project_id: old } : n)));
+                          toast(errText(e, "没保存上"));
+                        }
+                      }}
+                      options={[{ value: "", label: "不归项目" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                    />
+                  </div>
+                  <button className="b-small" onClick={toTask} disabled={linkBusy}>变成任务</button>
+                </div>
+                <div className="nl-row nl-links-list">
+                  <span className="nl-label">关联任务</span>
+                  {links.length === 0 ? (
+                    <span className="nl-empty">还没关联。写完可以挂上要跟着做的任务。</span>
+                  ) : (
+                    <div className="nl-chips">
+                      {links.map((l) => (
+                        <span key={l.id} className={`nl-chip ${l.status === "done" ? "done" : ""}`}>
+                          {l.status === "done" ? "✓ " : ""}
+                          {l.title}
+                          <button onClick={() => removeLink(l.task_id)} aria-label="解除关联">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="nl-select">
+                    <Select
+                      ariaLabel="关联任务"
+                      value={linkPick === "" ? "" : String(linkPick)}
+                      onChange={(v) => {
+                        const nv = v ? Number(v) : "";
+                        setLinkPick(nv);
+                        if (nv) void addLink(nv);
+                      }}
+                      options={[
+                        { value: "", label: "+ 关联一个任务…" },
+                        ...allTasks
+                          .filter((t) => !links.some((l) => l.task_id === t.id))
+                          .map((t) => ({ value: String(t.id), label: t.title })),
+                      ]}
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="foot">
                 <button className="b-small" onClick={togglePin}><Pin size={10} style={{ verticalAlign: -1, marginRight: 3 }} />{active.pinned ? "取消置顶" : "置顶"}</button>

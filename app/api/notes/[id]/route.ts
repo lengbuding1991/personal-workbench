@@ -13,6 +13,7 @@ const Patch = z.object({
   tags: z.string().max(300).optional(),
   archived: z.union([z.literal(0), z.literal(1)]).optional(),
   pinned: z.union([z.literal(0), z.literal(1)]).optional(),
+  project_id: z.number().int().positive().nullable().optional(),
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {

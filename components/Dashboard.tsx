@@ -30,6 +30,7 @@ import { usePointerDrag } from "@/lib/use-pointer-drag";
 import { DragGhostLayer } from "./DragGhost";
 import TaskModal from "./TaskModal";
 import TopBar from "./TopBar";
+import Select from "./Select";
 
 const areaMeta: Record<Area, { label: string; cls: string; hex: string }> = {
   work: { label: "工作", cls: "sky", hex: "#5AA7E8" },
@@ -87,6 +88,8 @@ export default function Dashboard({
   });
   const [hover, setHover] = useState<string | null>(null);
   const [mode, setMode] = useState<"plan" | "inspire">("plan");
+  const [trendRange, setTrendRange] = useState<"this" | "last">("this");
+  const [investRange, setInvestRange] = useState<"week" | "month">("week");
   const [modal, setModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [weekOffset, setWeekOffset] = useState(0);
   const [spin, setSpin] = useState(0);
@@ -124,14 +127,16 @@ export default function Dashboard({
   const points = doneTasks.length * 10 + notes.length * 2;
 
   const trend = useMemo(() => {
+    // 选「上周」时整体往前推 7 天
+    const end = trendRange === "last" ? subDays(now, 7) : now;
     return Array.from({ length: 7 }, (_, i) => {
-      const d = subDays(now, 6 - i);
+      const d = subDays(end, 6 - i);
       const mins = doneTasks
         .filter((t) => t.done_at && isSameDay(parseISO(t.done_at), d))
         .reduce((n, t) => n + (t.estimate_min ?? 20), 0);
       return { d, v: Math.round((mins / 60) * 10) / 10 };
     });
-  }, [doneTasks, now]);
+  }, [doneTasks, now, trendRange]);
 
   const weekTasks = useMemo(
     () =>
@@ -164,7 +169,21 @@ export default function Dashboard({
 
   const invest = useMemo(() => {
     const map = new Map<Area, number>();
-    for (const t of weekTasks) {
+    /*
+     * 「本周」用 ws..ws+7 的已排期任务；
+     * 「本月」改成整月，这样切过去数字会真的变，而不是一个摆设。
+     */
+    const monthStart = startOfMonth(new Date());
+    const monthEnd = endOfMonth(new Date());
+    const source =
+      investRange === "month"
+        ? tasks.filter((t) => {
+            if (!t.scheduled_start) return false;
+            const d = parseISO(t.scheduled_start);
+            return d >= monthStart && d <= monthEnd;
+          })
+        : weekTasks;
+    for (const t of source) {
       const s = parseISO(t.scheduled_start as string);
       const e = t.scheduled_end ? parseISO(t.scheduled_end) : s;
       const h = Math.max(0.5, differenceInCalendarDays(e, s) + 1);
@@ -175,7 +194,7 @@ export default function Dashboard({
     return [...map.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([area, v]) => ({ area, v, pct: Math.round((v / total) * 100), ...areaMeta[area] }));
-  }, [weekTasks, openTasks]);
+  }, [weekTasks, openTasks, tasks, investRange]);
 
   const investTotal = invest.reduce((n, x) => n + x.v, 0);
   const donutBg = useMemo(() => {
@@ -339,11 +358,25 @@ export default function Dashboard({
             <h2>本周成长趋势</h2>
             <span className="sub">每天专注时长</span>
             <div className="right">
-              <select aria-label="时间范围"><option>本周</option><option>上周</option></select>
+              <Select
+                size="sm"
+                ariaLabel="时间范围"
+                value={trendRange}
+                onChange={(v) => setTrendRange(v as "this" | "last")}
+                options={[
+                  { value: "this", label: "本周" },
+                  { value: "last", label: "上周" },
+                ]}
+              />
             </div>
           </div>
           <div className="c-body">
-            <div className="trend-tip"><b>{focusH}h</b><span>本周累计专注</span></div>
+            <div className="trend-tip">
+              <b>
+                {trend.reduce((n, t) => n + t.v, 0).toFixed(1)}h
+              </b>
+              <span>{trendRange === "last" ? "上周" : "本周"}累计专注</span>
+            </div>
             <div className="trend">
               <svg viewBox={`0 0 ${CW} ${CH}`} role="img" aria-label="本周每日专注时长">
                 <defs>
@@ -387,12 +420,26 @@ export default function Dashboard({
         <section className="card">
           <div className="c-head">
             <h2>模块投入占比</h2>
-            <div className="right"><select aria-label="范围"><option>本周</option><option>本月</option></select></div>
+            <div className="right">
+              <Select
+                size="sm"
+                ariaLabel="时间范围"
+                value={investRange}
+                onChange={(v) => setInvestRange(v as "week" | "month")}
+                options={[
+                  { value: "week", label: "本周" },
+                  { value: "month", label: "本月" },
+                ]}
+              />
+            </div>
           </div>
           <div className="c-body">
             <div className="donut-box">
               <div className="donut" style={{ background: donutBg }}>
-                <div className="mid"><b>{investTotal.toFixed(1)}</b><span>本周总投入</span></div>
+                <div className="mid">
+                  <b>{investTotal.toFixed(1)}</b>
+                  <span>{investRange === "month" ? "本月总投入" : "本周总投入"}</span>
+                </div>
               </div>
               <div className="legend">
                 {invest.map((i) => (
@@ -593,10 +640,16 @@ export default function Dashboard({
             <button onClick={() => setWeekOffset((v) => v - 1)} aria-label="上一周"><ChevronLeft size={11} /></button>
             <button onClick={() => setWeekOffset((v) => v + 1)} aria-label="下一周"><ChevronRight size={11} /></button>
           </div>
-          <select aria-label="视图" value={mode} onChange={(e) => setMode(e.target.value as "plan" | "inspire")}>
-            <option value="plan">计划派</option>
-            <option value="inspire">灵感派</option>
-          </select>
+          <Select
+            size="sm"
+            ariaLabel="视图"
+            value={mode}
+            onChange={(v) => setMode(v as "plan" | "inspire")}
+            options={[
+              { value: "plan", label: "计划派" },
+              { value: "inspire", label: "灵感派" },
+            ]}
+          />
         </div>
       </div>
 

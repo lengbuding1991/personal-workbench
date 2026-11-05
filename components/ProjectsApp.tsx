@@ -6,6 +6,8 @@ import { Plus, FolderKanban, Check, Archive, Trash2, Pencil } from "lucide-react
 import { format, parseISO } from "date-fns";
 import type { Task, Area } from "@/lib/db";
 import { api, errText } from "@/lib/api";
+import Select from "./Select";
+import DateField from "./DateField";
 import { useToast } from "./Toast";
 import { useConfirm } from "./Confirm";
 import TopBar from "./TopBar";
@@ -19,6 +21,7 @@ export type Project = {
   note: string;
   sort: number;
   created_at: string;
+  target_date?: string | null;
   total: number;
   done: number;
 };
@@ -26,9 +29,31 @@ export type Project = {
 const areaMeta: Record<string, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
 const palette = ["#9B8AE6", "#4FD3C8", "#F6C453", "#5AA7E8", "#F0897B", "#8FCB9B"];
 
-const blankDraft = { name: "", color: palette[0], area: "work" as Area, note: "" };
+const blankDraft = { name: "", color: palette[0], area: "work" as Area, note: "", target_date: "" };
 
-export default function ProjectsApp({ initial, tasks }: { initial: Project[]; tasks: Task[] }) {
+/** 距目标日期还有几天。已过期返回负数。 */
+function daysLeft(target?: string | null) {
+  if (!target) return null;
+  const d = new Date(target.slice(0, 10) + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+export default function ProjectsApp({
+  initial,
+  tasks,
+  notes = [],
+  weekDone = {},
+}: {
+  initial: Project[];
+  tasks: Task[];
+  /** 挂在项目下的记录（显示「最近动静」） */
+  notes?: { id: number; title: string; project_id: number | null; updated_at: string }[];
+  /** 本周完成数（按项目 id） */
+  weekDone?: Record<number, number>;
+}) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -56,6 +81,18 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
 
   const unassigned = useMemo(() => tasks.filter((t) => !t.project_id), [tasks]);
 
+  /* 项目页里直接勾完成。改的是服务器上的任务状态，本地 state 也要跟上。 */
+  const toggleTask = async (t: Task) => {
+    const next = t.status === "done" ? "todo" : "done";
+    try {
+      await api(`/api/tasks/${t.id}`, { method: "PATCH", body: { status: next } });
+      toast(next === "done" ? `「${t.title}」完成了` : `「${t.title}」退回了待办`);
+      router.refresh();
+    } catch (e) {
+      toast(errText(e, "没保存上"));
+    }
+  };
+
   const startNew = () => {
     setEditing(null);
     setDraft({ ...blankDraft, color: palette[list.length % palette.length] });
@@ -65,7 +102,7 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
 
   const startEdit = (p: Project) => {
     setEditing(p);
-    setDraft({ name: p.name, color: p.color, area: p.area as Area, note: p.note ?? "" });
+    setDraft({ name: p.name, color: p.color, area: p.area as Area, note: p.note ?? "", target_date: p.target_date?.slice(0, 10) ?? "" });
     setErr("");
     setOpen(true);
   };
@@ -76,11 +113,17 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
     setErr("");
     try {
       if (editing) {
-        const d = await api<{ project: Project }>(`/api/projects/${editing.id}`, { method: "PATCH", body: draft });
+        const d = await api<{ project: Project }>(`/api/projects/${editing.id}`, {
+          method: "PATCH",
+          body: { ...draft, target_date: draft.target_date || null },
+        });
         setList((l) => l.map((p) => (p.id === editing.id ? { ...p, ...d.project } : p)));
         toast("项目已更新");
       } else {
-        const d = await api<{ project: Project }>("/api/projects", { method: "POST", body: draft });
+        const d = await api<{ project: Project }>("/api/projects", {
+          method: "POST",
+          body: { ...draft, target_date: draft.target_date || null },
+        });
         setList((l) => [...l, { ...d.project, total: 0, done: 0 }]);
         toast(`「${draft.name}」建好了`);
       }
@@ -132,16 +175,28 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
     const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
     const isOpen = activeId === p.id;
     const its = byProject.get(p.id) ?? [];
+    const left = daysLeft(p.target_date);
+    const wd = weekDone[p.id] ?? 0;
+    const pNotes = notes.filter((n) => n.project_id === p.id).slice(0, 3);
     return (
       <div className={`pj-card ${isOpen ? "open" : ""}`} key={p.id}>
         <div className="pj-top" onClick={() => setActiveId(isOpen ? null : p.id)}>
           <span className="pj-dot" style={{ background: p.color }} />
           <div className="pj-meta">
             <b>{p.name}</b>
-            <span>{areaMeta[p.area] ?? p.area} · {p.total} 件任务</span>
+            <span>
+              {areaMeta[p.area] ?? p.area} · {p.total} 件任务
+              {wd > 0 && <> · 本周完成 <em className="pj-week">{wd}</em></>}
+            </span>
           </div>
           <div className="pj-pct">{pct}%</div>
         </div>
+        {left !== null && (
+          <div className={`pj-due ${left < 0 ? "over" : left <= 3 ? "soon" : ""}`}>
+            {left < 0 ? `已超期 ${-left} 天` : left === 0 ? "就是今天" : `还剩 ${left} 天`}
+            {p.target_date ? <em>{p.target_date.slice(0, 10)}</em> : null}
+          </div>
+        )}
         <div className="pj-bar">
           <i style={{ width: `${pct}%`, background: p.color }} />
         </div>
@@ -152,18 +207,36 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
           <button className="danger" onClick={() => remove(p)}><Trash2 size={11} />删除</button>
         </div>
         {isOpen && (
-          <div className="pj-tasks">
-            {its.length === 0 && <p className="pj-empty">这个项目还没有任务。去任务面板把任务归到它下面。</p>}
-            {its.map((t) => (
-              <div className={`pj-task ${t.status === "done" ? "done" : ""}`} key={t.id}>
-                <span className={`pj-tick ${t.status === "done" ? "on" : ""}`}>
-                  {t.status === "done" ? <Check size={9} /> : null}
-                </span>
-                <b>{t.title}</b>
-                {t.due_date ? <em>{format(parseISO(t.due_date), "M/d")}</em> : null}
+          <>
+            <div className="pj-tasks">
+              {its.length === 0 && <p className="pj-empty">这个项目还没有任务。去任务面板把任务归到它下面。</p>}
+              {its.map((t) => (
+                <div className={`pj-task ${t.status === "done" ? "done" : ""}`} key={t.id}>
+                  {/* 项目页里直接勾完成，不用跳回任务面板 */}
+                  <button
+                    className={`pj-tick ${t.status === "done" ? "on" : ""}`}
+                    onClick={() => void toggleTask(t)}
+                    aria-label={t.status === "done" ? "标记未完成" : "标记完成"}
+                  >
+                    {t.status === "done" ? <Check size={9} /> : null}
+                  </button>
+                  <b>{t.title}</b>
+                  {t.due_date ? <em>{format(parseISO(t.due_date), "M/d")}</em> : null}
+                </div>
+              ))}
+            </div>
+            {pNotes.length > 0 && (
+              <div className="pj-notes">
+                <div className="pj-notes-head">最近记下的</div>
+                {pNotes.map((n) => (
+                  <div className="pj-note-row" key={n.id}>
+                    <span>{n.title || "未命名记录"}</span>
+                    <em>{format(parseISO(n.updated_at), "M/d")}</em>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -229,11 +302,12 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
               </label>
               <label>
                 属于哪块
-                <select value={draft.area} onChange={(e) => setDraft({ ...draft, area: e.target.value as Area })}>
-                  {Object.entries(areaMeta).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
+                <Select
+                  ariaLabel="属于哪块"
+                  value={draft.area}
+                  onChange={(v) => setDraft({ ...draft, area: v as Area })}
+                  options={Object.entries(areaMeta).map(([k, v]) => ({ value: k, label: v }))}
+                />
               </label>
               <label>
                 颜色
@@ -249,6 +323,15 @@ export default function ProjectsApp({ initial, tasks }: { initial: Project[]; ta
                     />
                   ))}
                 </div>
+              </label>
+              <label>
+                想什么时候做完
+                <DateField
+                  mode="date"
+                  value={draft.target_date}
+                  onChange={(v) => setDraft({ ...draft, target_date: v })}
+                  placeholder="可选，填了会显示还剩几天"
+                />
               </label>
               <label>
                 备注

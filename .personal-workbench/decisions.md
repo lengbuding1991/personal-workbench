@@ -370,3 +370,22 @@ m15815 明确「先还原，我只要能导出 workbench.db」。已删 `lib/bac
 - **还原的改动**：`app/layout.tsx` 去掉 `manifest` / `appleWebApp` / `icons` / `themeColor` / `colorScheme` 与 `<ServiceWorkerRegister />`；`middleware.ts` 的 `PUBLIC_PATHS` 收回 `["/login","/api/auth","/api/health"]`；`app/globals.css` 删掉 `@media (display-mode:standalone)` 那段顶部安全区。
 - **保留**：`app/icon.svg` 仍是蓝绿三白块（浏览器标签页 favicon），它走的是 Next 的文件约定，和 PWA 无关，且与侧栏 logo 一致。
 - **副作用说明**：已经「添加到主屏幕」的设备上，那个图标会退化成普通网址书签；之前注册过的 Service Worker 会在浏览器下次检查 `sw.js` 拿到 404 后自行注销，缓存里的断网兜底页失效（本来也没有离线能力）。
+
+## 2026-11-06 — 补一份「从开发到上线」的全流程手册
+- **用户要求**：把整个项目从开发到上线的完整流程、包括 NAS 里 watchtower 的配置和后台点按钮更新的方法，写成一份文档，名字自定。
+- **产出**：`全流程手册-从开发到上线.md`（827 行，11 节）。不重复 `部署指南-NAS.md` 的图文步骤，而是把链路串成一条：本地开发 → `pnpm push`（为什么走 Git Data API）→ Actions 构建 arm64 → NAS 两个 Docker 项目 + `wt-net` → watchtower 配置 → 「立即更新」的 `after()`/冷却/轮询实现 → 三种更新方式 → 三层验证 → 按症状查的十个坑。
+- **为什么另起一份而不是改 `部署指南-NAS.md`**：那份是「第一次部署」的操作手册，读的人正在动手；这份是「整条链路为什么这么设计、坏了怎么查」的参考手册，读的人在排错或隔了几个月回来接手。混在一起会让操作步骤被原理淹没。
+- **发现并写进文档的不一致**：`部署指南-NAS.md` 里的 compose 还是「workbench + watchtower 同一个项目」的老写法，而 `docker-compose.nas.yml` 已经拆成两个独立项目 + `wt-net` 外部网络（提交 `02e547e`）。手册第 5 节按拆分后的实际写法给出完整 compose，并注明以手册为准；旧指南留作首次部署的图文参考，没有去改它。
+- **安全提示**：仓库是 public，`docker-compose.nas.yml` 里 watchtower 的 token 是明文，等于公开。因为 8080 没映射到宿主机、CF 隧道只指向 3100，外部够不到，风险有限；手册里给了「换成随机串、仓库里写占位」的改法，但没擅自改（改了要同时动 NAS 上两个项目，得用户在场）。
+
+## 2026-11-06 — 清理无效文件（死 CSS / 失效 script / 无引用截图）
+- **用户要求**：整套流程弄完后，看看项目里有没有无效文件，做清理。
+- **怎么判「无效」**：不按直觉删，先证明它没人用。CSS 用「从所有 `className=` 表达式里抽类名 token，再逐条比对规则的首个复合选择器」——只有首选择器里的类名**一个都不在** token 集合里才算死。早期用「整词出现在源码里」判会大面积误判（`rank`/`donut`/`tags`/`k`/`no` 这些短名是 `pj-stat`、`big-bars`、`lucide-calendar-days`、`.rrow .no` 的子串），所以第一版结论推翻了两次。
+- **删掉的死 CSS（104 行，`app/globals.css` 1677 → 1573 行）**：三套被改版替换掉的界面遗留 —— nudge 圆环提示段（`.nudge/.n-head/.n-sub/.nudge-grid/.donut-wrap/.rank-head/.n-actions`）、右侧 drawer 抽屉段（`.overlay/.drawer/.d-head/.d-body/.note-cap/.note-item/.ta/.row-end`）、旧日历 v1 段（`.cal-wrap/.cal-week/.cal-day/.ev/.ev-*/.schedule-strip/.ss-*/.day-list/.day-row`），外加 `.clock`、`.q`、`.msg/.ai-log/.ai-in`、`.srow`、`.switch`、`.stat-grid/.stat/.bars/.days`、`.chart-card`、`.ev-click`、`.sf-sel/.sf-date`，以及 3 处 `@media` 里对应的覆盖行。删前备份到 `/tmp/globals.css.bak` 比对过每一行。
+- **`.nav-progress` 没删**：扫描器把模板字符串 `` `nav-progress${on ? " on" : ""}` `` 切错报成死代码，人工核对 `components/NavProgress.tsx:48` 在用。这条记下来当教训：扫描结果必须人工复核一遍再落刀。
+- **删掉失效的 `pnpm seed`**：`package.json` 里 `"seed": "tsx scripts/seed.ts"`，但 `scripts/seed.ts` 从不存在（`git log` 无历史），跑起来是 `ERR_MODULE_NOT_FOUND`。真正的种子逻辑在 `lib/db.ts:215` 的 `seed()`，由 `lib/db.ts:346` 在空库时自动调用，不依赖任何 script。同时把 `全流程手册` 命令表和 `开发文档.md` 的目录树里对它的引用一并改掉。
+- **删掉无引用截图**：`docs/screens/` 的 `calendar.webp` / `notes.webp` / `tasks.webp`（0 引用），保留 `home.webp`（`README.md:7` 在用）。
+- **顺手删 `tsconfig.tsbuildinfo`**（250KB，`tsc --noEmit` 产物，已被 .gitignore）。
+- **没删的**（都核过有引用或有意保留）：`public/.gitkeep`（`Dockerfile:62` 的 `COPY /app/public` 依赖目录存在，删了 clone 后构建立刻失败）、`prototypes/` 5 个 html 与 `prototypes/screens/` 的 `d.png`、`deploy/` 8 个文件、`docker-compose.yml`、5 个中文 md、`app/api` 全部 23 个路由、11 个页面、24 个组件、10 个 `lib/*.ts`（第一轮「6 个组件未引用」是我的 grep 模式写错：引用写的是 `./DateField` 相对路径）。
+- **`screens/`（106M、191 张）和 `prototypes/screens/` 的其余 png 没动**：都在 `.gitignore` 里、不进仓库、不影响构建，但删了会丢历史截图，属于本地资产，留给用户决定。
+- **验证**：`pnpm build` 通过（首屏 JS 未变）；`pnpm typecheck` 通过；起 3201 实例用会话 cookie 逐个打 10 个页面全 200；把渲染出的 HTML 里扫一遍已删类名，只命中 `grp-switch`/`mini-bars`/`big-bars`/`mw-ev`/`cal2-ev`/`review-q`/`lucide-calendar-days` 这些**长名的子串**（正是当初误判的来源），确认没有真正的孤儿样式；构建产物 CSS 里 `.cal-day`/`.day-row`/`.drawer` 等已归零，`.donut`/`.rrow`/`.rbar`/`.big-bars`/`.tags`/`.search`/`.nav-progress` 仍在。

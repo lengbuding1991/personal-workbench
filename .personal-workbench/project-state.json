@@ -3,7 +3,7 @@
   "project_name": "个人工作台",
   "phase": "operational",
   "created_at": "2026-11-02T12:49:51Z",
-  "updated_at": "2026-11-05T10:28:00Z",
+  "updated_at": "2026-11-06T07:05:00Z",
   "primary_scenario": "个人人生工作台：待办→完成复盘、记录+查找、日程+提醒（通用底座，模块后加）",
   "primary_device": "desktop",
   "data_mode": "local",
@@ -34,7 +34,7 @@
     "note": "2026-11-05 按用户要求整段撤掉：删了 app/manifest.ts、public/sw.js、public/offline.html、5 个图标、components/ServiceWorkerRegister.tsx、scripts/gen_pwa_icons.py，并还原 app/layout.tsx 的 manifest/appleWebApp/icons/themeColor 与 middleware.ts 的放行项。工作台回到普通网页模式（浏览器里直接用，不安装到主屏）。"
   },
   "qa": {
-    "round": "第二十八轮：去掉 PWA，回到普通网页模式",
+    "round": "第三十轮：清理无效文件（死 CSS / 失效 script / 无引用截图）",
     "status": "verified",
     "unverified": [
       "真机 iPhone/iPad 实测",
@@ -51,7 +51,7 @@
     "image": "ghcr.io/lengbuding1991/personal-workbench:latest（public，匿名可拉）",
     "compose": "docker-compose.nas.yml（workbench + watchtower）",
     "data_dir": "/volume1/docker/workbench/data（容器内 /data）",
-    "auto_update": "pnpm push → GitHub Actions 构建 arm64 → watchtower 每 5 分钟 poll 并重建",
+    "auto_update": "pnpm push → GitHub Actions 构建 arm64 → 设置页「立即更新」调 watchtower HTTP API 立刻重建；watchtower 每 24 小时（86400s）兜底轮询",
     "status": "live",
     "verified": [
       "仓库已改 public（API PATCH 成功）",
@@ -111,5 +111,8 @@
       "status": "done",
       "note": "习惯打卡：habit / habit_log 两表（按天一条，UNIQUE 防重复），连续天数今天没打卡时从昨天算，最近 60 天可补，不能提前打卡；页面 /habits，接口 /api/habits、/api/habits/[id]、/api/habits/log"
     }
+  },
+  "docs": {
+    "full_guide": "全流程手册-从开发到上线.md"
   }
 }

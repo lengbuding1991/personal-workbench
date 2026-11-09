@@ -21,13 +21,13 @@ import {
   Sparkles,
   Star,
   TrendingUp,
+  User,
   Wand2,
   ChartNoAxesColumn,
 } from "lucide-react";
 import type { Task, EventRow, Note, Area } from "@/lib/db";
+import type { HabitView } from "@/lib/habits";
 import { useTasks } from "@/lib/use-tasks";
-import { usePointerDrag } from "@/lib/use-pointer-drag";
-import { DragGhostLayer } from "./DragGhost";
 import TaskModal from "./TaskModal";
 import TopBar from "./TopBar";
 import Select from "./Select";
@@ -39,12 +39,6 @@ const areaMeta: Record<Area, { label: string; cls: string; hex: string }> = {
   study: { label: "学习", cls: "mint", hex: "#6FD6BE" },
   life: { label: "生活", cls: "amber", hex: "#F6C453" },
 };
-
-const cols: { key: "todo" | "doing" | "done"; label: string; dot: string }[] = [
-  { key: "todo", label: "待办", dot: "#5AA7E8" },
-  { key: "doing", label: "进行中", dot: "#F6C453" },
-  { key: "done", label: "完成", dot: "#3AC8C2" },
-];
 
 const catStyle: Record<Area, { bg: string; color: string }> = {
   work: { bg: "#E8F2FC", color: "#2F7FC4" },
@@ -69,32 +63,28 @@ export default function Dashboard({
   tasks: tasksProp,
   events,
   notes,
+  habits = [],
+  userName = "",
   weekStart,
 }: {
   tasks: Task[];
   events: EventRow[];
   notes: Note[];
+  habits: HabitView[];
+  userName: string;
   weekStart: string;
 }) {
   const router = useRouter();
-  const { tasks, cycle, setStatus } = useTasks(tasksProp);
-  const { begin, ghost, didDrag } = usePointerDrag<{ id: number; from: Task["status"] }>(({ payload, x, y }) => {
-    const el = document.elementFromPoint(x, y);
-    const col = el?.closest("[data-status]") as HTMLElement | null;
-    setHover(null);
-    const next = col?.dataset.status as Task["status"] | undefined;
-    const t = tasks.find((x2) => x2.id === payload.id);
-    if (t && next && next !== payload.from) setStatus(t, next);
-  });
-  const [hover, setHover] = useState<string | null>(null);
+  const { tasks, cycle } = useTasks(tasksProp);
   const [mode, setMode] = useState<"plan" | "inspire">("plan");
   const [trendRange, setTrendRange] = useState<"this" | "last">("this");
   const [investRange, setInvestRange] = useState<"week" | "month">("week");
   const [modal, setModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [weekOffset, setWeekOffset] = useState(0);
+  /* 选中本周某一天（-1 = 看整周）—— 点日期头就能只看那天 */
+  const [dayPick, setDayPick] = useState(-1);
   const [spin, setSpin] = useState(0);
   const [calMonth, setCalMonth] = useState(() => startOfMonth(new Date()));
-  const [ghostId, setGhostId] = useState<number | null>(null);
 
   const now = new Date();
   const ws = addDays(parseISO(weekStart), weekOffset * 7);
@@ -106,6 +96,12 @@ export default function Dashboard({
   const todayOpen = todayAll.filter((t) => t.status !== "done");
   const todayDone = todayAll.filter((t) => t.status === "done");
   const todayPct = todayAll.length ? Math.round((todayDone.length / todayAll.length) * 100) : 0;
+
+  /* 「完成率」按全部任务算，不按今天算。
+     以前只看今天到期的任务：今天没写截止日，完成率就永远是 0，
+     看久了会以为自己一件都没做成。长期任务没做完就一直欠着，
+     写了这天又没做完的照样算逾期（任务面板里标红）。 */
+  const allPct = tasks.length ? Math.round((doneTasks.length / tasks.length) * 100) : 0;
 
   const yesterday = subDays(now, 1);
   const yAll = tasks.filter((t) => t.due_date && isSameDay(parseISO(t.due_date), yesterday));
@@ -120,6 +116,15 @@ export default function Dashboard({
     else if (i === 0) continue;
     else break;
   }
+
+  /* 习惯打卡：大数字 = 当前连续的最大值（今天还没打卡也不打断），
+     另外算历史最长（成就，断掉不归零）—— 这两个数不是一回事 */
+  const habitStreak = habits.reduce((n, h) => Math.max(n, h.streak), 0);
+  const habitBest = habits.reduce((n, h) => Math.max(n, h.bestStreak), 0);
+  const habitPending = habits.filter((h) => !h.doneToday).length;
+  const habitPct = habits.length
+    ? Math.round(((habits.length - habitPending) / habits.length) * 100)
+    : 0;
 
   const weekDone = doneTasks.filter((t) => t.done_at && parseISO(t.done_at) >= startOfWeek(now, { weekStartsOn: 1 }));
   const focusMin = weekDone.reduce((n, t) => n + (t.estimate_min ?? 20), 0);
@@ -148,24 +153,72 @@ export default function Dashboard({
     [tasks, ws]
   );
 
+  /* 本周安排要同时画「任务」和「日程」——
+     卡片上写「N 件安排」是任务 + 日程，甘特条只画任务的话两边对不上，
+     而且点某天看到的日程在条上根本找不到。 */
+  const weekEvents = useMemo(
+    () =>
+      events.filter((e) => {
+        const s = parseISO(e.start_at);
+        return s >= ws && s < addDays(ws, 7);
+      }),
+    [events, ws],
+  );
+
+  type LaneItem = {
+    key: string;
+    title: string;
+    startIdx: number;
+    endIdx: number;
+    kind: "task" | "event";
+    task?: Task;
+    event?: EventRow;
+    color: string;
+  };
+
   const lanes = useMemo(() => {
-    const items = weekTasks
-      .map((t) => {
+    const idx = (a: Date, b: Date) => {
+      const d = differenceInCalendarDays(a, ws);
+      return Math.max(0, Math.min(6, d));
+    };
+    const items: LaneItem[] = [
+      ...weekTasks.map((t) => {
         const s = parseISO(t.scheduled_start as string);
         const e = t.scheduled_end ? parseISO(t.scheduled_end) : s;
-        const startIdx = Math.max(0, Math.min(6, differenceInCalendarDays(s, ws)));
-        const endIdx = Math.max(startIdx, Math.min(6, differenceInCalendarDays(e, ws)));
-        return { task: t, startIdx, endIdx };
-      })
-      .sort((a, b) => a.startIdx - b.startIdx);
-    const rows: { task: Task; startIdx: number; endIdx: number }[][] = [];
+        const startIdx = idx(s, ws);
+        return {
+          key: `t${t.id}`,
+          title: t.title,
+          startIdx,
+          endIdx: Math.max(startIdx, idx(e, ws)),
+          kind: "task" as const,
+          task: t,
+          color: areaMeta[t.area].hex,
+        };
+      }),
+      ...weekEvents.map((e) => {
+        const s = parseISO(e.start_at);
+        const en = e.end_at ? parseISO(e.end_at) : s;
+        const startIdx = idx(s, ws);
+        return {
+          key: `e${e.id}`,
+          title: e.title,
+          startIdx,
+          endIdx: Math.max(startIdx, idx(en, ws)),
+          kind: "event" as const,
+          event: e,
+          color: "#A78BFA",
+        };
+      }),
+    ].sort((a, b) => a.startIdx - b.startIdx);
+    const rows: LaneItem[][] = [];
     for (const it of items) {
       const lane = rows.find((r) => r[r.length - 1].endIdx < it.startIdx);
       if (lane) lane.push(it);
       else rows.push([it]);
     }
     return rows;
-  }, [weekTasks, ws]);
+  }, [weekTasks, weekEvents, ws]);
 
   const invest = useMemo(() => {
     const map = new Map<Area, number>();
@@ -207,19 +260,36 @@ export default function Dashboard({
     return `conic-gradient(${stops.join(",") || "#E8F2FC 0 100%"})`;
   }, [invest]);
 
+  const quoteNote = notes.find((n) => n.content && n.content.trim().length > 8);
+
+  /* 灵感派：显示「记录灵感」里写下的内容，不是待办任务。
+     评分规则跟鸿蒙端对齐：置顶 +3、正文够长 +1、有标签 +1、
+     今天/昨天刚记的 +2、最近一周记的 +1。 */
   const candidates = useMemo(() => {
-    const score = (t: Task) =>
-      (t.priority === "high" ? 3 : t.priority === "med" ? 2 : 1) +
-      (t.status === "doing" ? 2 : 0) +
-      (t.due_date && isSameDay(parseISO(t.due_date), now) ? 2 : 0);
-    const list = openTasks.map((t) => ({ t, s: score(t) })).sort((a, b) => b.s - a.s).slice(0, 5);
-    const sum = list.reduce((n, x) => n + x.s, 0) || 1;
-    return list.map((x, i) => ({
+    const quoteId = quoteNote?.id ?? -1;
+    const scored = notes
+      .filter((n) => n.id !== quoteId)
+      .map((n) => {
+        let s = 1;
+        if (n.pinned === 1) s += 3;
+        if ((n.content || "").trim().length > 20) s += 1;
+        if ((n.tags || "").trim()) s += 1;
+        const days = n.updated_at ? differenceInCalendarDays(now, parseISO(n.updated_at)) : 999;
+        if (days <= 1) s += 2;
+        else if (days <= 7) s += 1;
+        return { n, s };
+      })
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 5);
+    const sum = scored.reduce((n, x) => n + x.s, 0) || 1;
+    /* 「换一批」：把整份列表轮转一个位置，而不是换一批随机内容 */
+    const rotated = scored.map((_, i) => scored[(i + spin) % scored.length]);
+    return rotated.map((x, i) => ({
       ...x,
       pct: Math.round((x.s / sum) * 100),
       color: ["#3AC8C2", "#5AA7E8", "#A78BFA", "#F5AE8E", "#F6C453"][i % 5],
     }));
-  }, [openTasks, now]);
+  }, [notes, now, spin]);
 
   const nudgeDonut = useMemo(() => {
     let acc = 0;
@@ -231,14 +301,17 @@ export default function Dashboard({
     return `conic-gradient(${stops.join(",") || "#E8F2FC 0 100%"})`;
   }, [candidates]);
 
+  /* 「最近任务」只放还没做完的 —— 完成了的任务挤在首页最没用，
+     而且会把真正要做的挤下去。取最近 5 条。 */
   const recent = useMemo(() => {
-    return [...tasks]
+    return tasks
+      .filter((t) => t.status !== "done")
       .sort((a, b) => {
-        const rank = (t: Task) => (t.status === "done" ? 2 : t.status === "doing" ? 0 : 1);
+        const rank = (t: Task) => (t.status === "doing" ? 0 : 1);
         if (rank(a) !== rank(b)) return rank(a) - rank(b);
         return (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999");
       })
-      .slice(0, 8);
+      .slice(0, 5);
   }, [tasks]);
 
   const calDays = useMemo(() => {
@@ -254,6 +327,25 @@ export default function Dashboard({
 
   const tasksOn = (d: Date) =>
     tasks.some((t) => (t.due_date && isSameDay(parseISO(t.due_date), d)) || (t.scheduled_start && isSameDay(parseISO(t.scheduled_start), d)));
+
+  /* 每天完成了多少件 —— 月历格子上显示数字，
+     只显示「有/没有」看不出这一天到底做了多少 */
+  /* 本月完成数：只看这个月的，不是历史总数 */
+  const monthDoneCount = useMemo(() => {
+    const ym = format(calMonth, "yyyy-MM");
+    return doneTasks.filter((t) => t.done_at && t.done_at.slice(0, 7) === ym).length;
+  }, [doneTasks, calMonth]);
+
+  const doneCountByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.status !== "done" || !t.done_at) continue;
+      const key = t.done_at.slice(0, 10);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [tasks]);
+  const dayKeyOf = (d: Date) => format(d, "yyyy-MM-dd");
 
   const trendMax = Math.max(...trend.map((t) => t.v));
   const trendTop = Math.max(1, Math.round(trendMax * 1.45 * 10) / 10);
@@ -277,8 +369,6 @@ export default function Dashboard({
     todayPct >= yPct ? "完成率比昨天更稳，保持这个节奏。" : "节奏比昨天松一点，先挑一件最小的事启动。"
   }`;
 
-  const quoteNote = notes.find((n) => n.content && n.content.trim().length > 8);
-
   return (
     <>
       <TopBar crumb="成长总览">
@@ -289,7 +379,17 @@ export default function Dashboard({
 
       <div className="hello">
         <div>
-          <div className="eyebrow">{format(now, "yyyy.MM.dd")} · {format(now, "EEEE", { locale: zhCN })}</div>
+          <div className="eyebrow hello-eyebrow">
+            <span>{format(now, "yyyy.MM.dd")} · {format(now, "EEEE", { locale: zhCN })}</span>
+            {/* 右上角显示设置里的「称呼」—— 改了称呼要能一眼看到，
+                不然用户会以为设置没生效 */}
+            {userName && (
+              <Link href="/settings" className="name-chip" title="在设置里改称呼">
+                <User size={11} />
+                {userName}
+              </Link>
+            )}
+          </div>
           <h1>今天，先做三件要紧事。</h1>
           <p>其余都是加分项。今天还有 {todayOpen.length || openTasks.length} 件待办。</p>
         </div>
@@ -311,7 +411,11 @@ export default function Dashboard({
             今日任务
           </div>
           <b>{todayAll.length || openTasks.length}<small>项</small></b>
-          <div className="d mute">已完成 {todayDone.length} 项</div>
+          <div className="d mute">
+            {todayAll.length
+              ? `今天到期 ${todayAll.length} 项 · 已完成 ${todayDone.length} 项`
+              : `待办 ${openTasks.length} 项 · 全部任务 ${tasks.length} 项`}
+          </div>
           <div className="track"><i style={{ width: `${todayPct}%` }} /></div>
         </div>
         <div className="kpi">
@@ -319,17 +423,27 @@ export default function Dashboard({
             <span className="kpi-ico" style={{ background: "#E3F8F2", color: "#2E8C77" }}><CheckCircle2 size={15} /></span>
             完成率
           </div>
-          <b>{todayPct}%</b>
-          <div className="d"><TrendingUp size={10} /> {todayPct >= yPct ? "较昨日 +" : "较昨日 "}{Math.abs(todayPct - yPct)}%</div>
-          <div className="track"><i style={{ width: `${todayPct}%` }} /></div>
+          <b>{allPct}%</b>
+          <div className="d mute">
+            {tasks.length === 0
+              ? "还没有任务"
+              : openTasks.length > 0
+                ? `已完成 ${doneTasks.length} / ${tasks.length} 件 · 还剩 ${openTasks.length} 件`
+                : `已完成 ${doneTasks.length} / ${tasks.length} 件 · 全部做完了`}
+          </div>
+          <div className="track"><i style={{ width: `${allPct}%` }} /></div>
         </div>
         <div className="kpi">
           <div className="kpi-top">
             <span className="kpi-ico" style={{ background: "#FDEEE6", color: "#C2622F" }}><Flame size={15} /></span>
-            连续天数
+            连续完成
           </div>
           <b>{streak}<small>天</small></b>
-          <div className="d mute">累计完成 {doneTasks.length} 件</div>
+          {/* 「连续完成」= 连续每天都有任务完成；和下面的「习惯打卡」不是一回事，
+              所以这里明确写清楚，免得两个火苗数字打架 */}
+          <div className="d mute" title="连续每天都有任务完成的天数。和「习惯打卡」不是一回事">
+            每天都有任务完成 · 累计 {doneTasks.length} 件
+          </div>
           <div className="track"><i style={{ width: `${Math.min(100, streak * 6)}%` }} /></div>
         </div>
         <div className="kpi">
@@ -350,6 +464,21 @@ export default function Dashboard({
           <div className="d mute">完成 +10 · 记录 +2</div>
           <div className="track"><i style={{ width: `${Math.min(100, (points / 600) * 100)}%` }} /></div>
         </div>
+        <Link href="/habits" className="kpi kpi-link">
+          <div className="kpi-top">
+            <span className="kpi-ico" style={{ background: "#FDEEE6", color: "#A44F26" }}><Flame size={15} /></span>
+            习惯打卡
+          </div>
+          <b>{habitStreak}<small>天</small></b>
+          <div className="d mute">
+            {habits.length === 0
+              ? "还没有习惯"
+              : habitPending === 0
+                ? `今天都打卡了${habitBest > 0 ? ` · 历史最长 ${habitBest} 天` : ""}`
+                : `今天还差 ${habitPending} 个${habitBest > 0 ? ` · 历史最长 ${habitBest} 天` : ""}`}
+          </div>
+          <div className="track"><i style={{ width: `${habitPct}%` }} /></div>
+        </Link>
       </section>
 
       <div className="home-grid">
@@ -514,7 +643,7 @@ export default function Dashboard({
           </div>
           <div className="c-body">
             <div className="mini-cal">
-              <div className="mc-head"><b>{format(calMonth, "yyyy 年 M 月", { locale: zhCN })}</b><span>{doneTasks.length} 完成</span></div>
+              <div className="mc-head"><b>{format(calMonth, "yyyy 年 M 月", { locale: zhCN })}</b><span>{monthDoneCount} 完成</span></div>
               <div className="mc-grid">
                 {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
                   <div key={w} className="wd">{w}</div>
@@ -522,10 +651,13 @@ export default function Dashboard({
                 {calDays.map(({ d, out }, i) => {
                   const isToday = isSameDay(d, now);
                   const has = isSameMonth(d, calMonth) && tasksOn(d);
+                  const doneN = isSameMonth(d, calMonth) ? doneCountByDay.get(dayKeyOf(d)) ?? 0 : 0;
                   return (
                     <div key={i} className={`mc-day ${out ? "out" : ""} ${isToday ? "today" : has ? "has" : ""}`}>
-                      {format(d, "d")}
-                      {has && !isToday && <i />}
+                      <span>{format(d, "d")}</span>
+                      {/* 每天完成了几件，直接写数字；没完成但有安排的点一个小点 */}
+                      {doneN > 0 && <em className="mc-n">{doneN}</em>}
+                      {doneN === 0 && has && !isToday && <i />}
                     </div>
                   );
                 })}
@@ -572,12 +704,15 @@ export default function Dashboard({
         </section>
 
         <section className="card span2">
-          <div className="c-head"><h2>灵感派</h2><span className="sub">随心开始</span>
+          <div className="c-head"><h2>灵感派</h2><span className="sub">从记录里挑</span>
             <div className="right"><button className="ghost" style={{ padding: "3px 9px", fontSize: 10 }} onClick={() => setSpin((v) => v + 1)}><Sparkles size={10} style={{ verticalAlign: -1 }} /> 换一批</button></div>
           </div>
           <div className="c-body">
             {candidates.length === 0 ? (
-              <div className="center-empty" style={{ padding: "18px 6px" }}><b>现在没有待办</b><p>加一件想做的事。</p></div>
+              <div className="center-empty" style={{ padding: "18px 6px" }}>
+                <b>还没有可翻的记录</b>
+                <p>去「记录灵感」随手写一条，这里会把它们翻出来。</p>
+              </div>
             ) : (
               <div className="inspire-wide">
                 <div className="donut" style={{ background: nudgeDonut, width: 132, height: 132 }}>
@@ -586,17 +721,18 @@ export default function Dashboard({
                 <div className="inspire-rank">
                   <div className="rank">
                     {candidates.slice(0, 3).map((c, i) => (
-                      <div key={c.t.id} style={{ display: "contents" }}>
-                        <div className="rrow" onClick={() => setModal({ open: true, task: c.t })}>
+                      <div key={c.n.id} style={{ display: "contents" }}>
+                        {/* 点一条记录 → 直接跳到那条记录，不用先回列表再找 */}
+                        <Link href={`/notes?id=${c.n.id}`} className="rrow" style={{ textDecoration: "none", color: "inherit" }}>
                           <span className="no">{i + 1}</span>
-                          <div className="rt">{c.t.title}</div>
+                          <div className="rt">{c.n.title || (c.n.content || "").slice(0, 24) || "（空记录）"}</div>
                           <span className="pc">{c.pct}%</span>
-                        </div>
+                        </Link>
                         <div className="rbar"><i style={{ width: `${c.pct}%`, background: c.color }} /></div>
                       </div>
                     ))}
                   </div>
-                  <p className="nudge-foot">不必计划好全部，先迈出一步。</p>
+                  <p className="nudge-foot">这些是你写过的东西，翻出来看看能不能接着往下做。</p>
                 </div>
               </div>
             )}
@@ -634,7 +770,7 @@ export default function Dashboard({
 
       <div className="sec-head">
         <h2>本周安排</h2>
-        <span className="count">{weekTasks.length} 件已排期</span>
+        <span className="count">{weekTasks.length + weekEvents.length} 件已排期</span>
         <div className="right">
           <div className="arrows">
             <button onClick={() => setWeekOffset((v) => v - 1)} aria-label="上一周"><ChevronLeft size={11} /></button>
@@ -660,28 +796,38 @@ export default function Dashboard({
           <span className="range">{format(ws, "MM.dd")} – {format(addDays(ws, 6), "MM.dd")}</span>
         </div>
         <div className="w-days">
-          {days.map((d) => (
-            <div key={d.toISOString()} className={isSameDay(d, now) ? "today" : ""}>
+          {days.map((d, i) => (
+            <button
+              key={d.toISOString()}
+              className={`w-day ${isSameDay(d, now) ? "today" : ""} ${dayPick === i ? "picked" : ""}`}
+              onClick={() => setDayPick(dayPick === i ? -1 : i)}
+              title={dayPick === i ? "再看整周" : `只看${format(d, "M月d日")}`}
+            >
               {format(d, "EEEEE", { locale: zhCN })}
               <b>{format(d, "dd")}</b>
-            </div>
+            </button>
           ))}
         </div>
         {lanes.map((lane, i) => (
           <div className="w-row" key={i}>
             {lane.map((it) => {
-              const meta = areaMeta[it.task.area];
+              if (dayPick >= 0 && it.startIdx !== dayPick) return null;
               const left = (it.startIdx / 7) * 100;
               const width = ((it.endIdx - it.startIdx + 1) / 7) * 100;
+              const meta = it.task ? areaMeta[it.task.area] : null;
               return (
                 <div
-                  key={it.task.id}
-                  className={`bar ${meta.cls}`}
+                  key={it.key}
+                  className={`bar ${meta ? meta.cls : "lav"}`}
                   style={{ left: `${left}%`, width: `calc(${width}% - 4px)` }}
-                  title={it.task.title}
-                  onClick={() => setModal({ open: true, task: it.task })}
+                  title={it.title}
+                  onClick={() => {
+                    if (it.task) setModal({ open: true, task: it.task });
+                    else if (it.event) router.push("/calendar");
+                  }}
                 >
-                  {it.task.title}
+                  {it.kind === "event" && <CalendarDays size={9} style={{ verticalAlign: -1, marginRight: 3 }} />}
+                  {it.title}
                 </div>
               );
             })}
@@ -692,74 +838,11 @@ export default function Dashboard({
           {(Object.keys(areaMeta) as Area[]).map((a) => (
             <span key={a}><i style={{ background: areaMeta[a].hex }} />{areaMeta[a].label}</span>
           ))}
-          <span style={{ marginLeft: "auto" }}>点一下时间块可编辑</span>
+          <span><i style={{ background: "#A78BFA" }} />日程</span>
+          <span style={{ marginLeft: "auto" }}>点时间块可编辑 · 点日期只看那天</span>
         </div>
       </section>
 
-      <div className="sec-head">
-        <h2>任务看板</h2>
-        <span className="count">{openTasks.length} 件待处理</span>
-        <div className="right">
-          <button className="ghost" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => setModal({ open: true, task: null })}>＋ 新任务</button>
-        </div>
-      </div>
-      <div className="kanban">
-        {cols.map((c) => {
-          const list = tasks.filter((t) => t.status === c.key);
-          return (
-            <div
-              className={`col ${hover === c.key && ghost ? "drop-hot" : ""}`}
-              key={c.key}
-              data-status={c.key}
-              onPointerMove={() => { if (ghost && hover !== c.key) setHover(c.key); }}
-              onPointerLeave={() => setHover((h) => (h === c.key ? null : h))}
-            >
-              <div className="col-head">
-                <span className="dot" style={{ background: c.dot }} />
-                <b>{c.label}</b>
-                <span className="n">{list.length}</span>
-                <button onClick={() => setModal({ open: true, task: null })} aria-label={`添加${c.label}任务`}>＋</button>
-              </div>
-              {list.map((t) => (
-                <div
-                  className={`tcard ${t.status === "done" ? "done" : ""} ${ghost && ghostId === t.id ? "lifted" : ""}`}
-                  key={t.id}
-                  onPointerDown={(e) => {
-                    if ((e.target as HTMLElement).closest("button")) return;
-                    setGhostId(t.id);
-                    begin(e, { id: t.id, from: t.status }, t.title, c.dot);
-                  }}
-                  onClick={() => {
-                    if (didDrag.current) {
-                      didDrag.current = false;
-                      return;
-                    }
-                    setModal({ open: true, task: t });
-                  }}
-                >
-                  <div className="ct">{t.title}</div>
-                  <div className="cm">
-                    <span>{t.due_date ? format(parseISO(t.due_date), "M/d") : "随时"}</span>
-                    <span className="cat">{areaMeta[t.area].label}</span>
-                    {t.priority === "high" && <span style={{ color: "#D2795C" }}>· 要紧</span>}
-                  </div>
-                  <button className="check" aria-label={t.status === "done" ? "标记未完成" : "标记完成"} onClick={(e) => { e.stopPropagation(); cycle(t); }}>
-                    ✓
-                  </button>
-                </div>
-              ))}
-              {!list.length && <div className="empty-col">这里还是空的</div>}
-              <button className="col-add" onClick={() => setModal({ open: true, task: null })}>＋ 添加{c.label}任务</button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="foot-hint">
-        <span className="line" /> 待办与进行中，都可以成为下一步 <b>{doneTasks.length} / {tasks.length}</b> <span className="line" />
-      </div>
-
-      <DragGhostLayer ghost={ghost} />
       <TaskModal open={modal.open} task={modal.task} onClose={() => setModal({ open: false, task: null })} />
     </>
   );

@@ -389,3 +389,15 @@ m15815 明确「先还原，我只要能导出 workbench.db」。已删 `lib/bac
 - **没删的**（都核过有引用或有意保留）：`public/.gitkeep`（`Dockerfile:62` 的 `COPY /app/public` 依赖目录存在，删了 clone 后构建立刻失败）、`prototypes/` 5 个 html 与 `prototypes/screens/` 的 `d.png`、`deploy/` 8 个文件、`docker-compose.yml`、5 个中文 md、`app/api` 全部 23 个路由、11 个页面、24 个组件、10 个 `lib/*.ts`（第一轮「6 个组件未引用」是我的 grep 模式写错：引用写的是 `./DateField` 相对路径）。
 - **`screens/`（106M、191 张）和 `prototypes/screens/` 的其余 png 没动**：都在 `.gitignore` 里、不进仓库、不影响构建，但删了会丢历史截图，属于本地资产，留给用户决定。
 - **验证**：`pnpm build` 通过（首屏 JS 未变）；`pnpm typecheck` 通过；起 3201 实例用会话 cookie 逐个打 10 个页面全 200；把渲染出的 HTML 里扫一遍已删类名，只命中 `grp-switch`/`mini-bars`/`big-bars`/`mw-ev`/`cal2-ev`/`review-q`/`lucide-calendar-days` 这些**长名的子串**（正是当初误判的来源），确认没有真正的孤儿样式；构建产物 CSS 里 `.cal-day`/`.day-row`/`.drawer` 等已归零，`.donut`/`.rrow`/`.rbar`/`.big-bars`/`.tags`/`.search`/`.nav-progress` 仍在。
+
+## 2026-11-09 — 照着鸿蒙版回头完善网页端（第二十一轮）
+- **用户要求**：另有一个鸿蒙版 App（小记 / XIAOJI），与网页端共用同一套数据模型；「参考鸿蒙项目把网页端完善，只改你这边的东西，不许动鸿蒙那边」。
+- **硬约束**：本轮所有改动只在 `/Users/hina/Documents/deepseek-harness/个人工作台`；`/Users/hina/DevEcoStudioProjects/workbench` 与 `个人工作台 APP-鸿蒙` 目录**全程只读**，收尾用 `git status --porcelain` 确认鸿蒙工程工作树为空。
+- **方法**：反过来读鸿蒙那边累积的 R01–R68 需求表，逐条对网页端有没有、做得一不一样，把两边不一致且明显网页端落后的补上。鸿蒙的 ArkUI 专属问题（Canvas 用 vp 不是 px、`$$this.x` 不回写、`ignoreLayoutSafeArea`）不迁。
+- **补上**：习惯回看窗口 60→365 天 + 新增 `bestStreak` + 30 天补卡网格；首页新增习惯打卡 KPI（6 张）；灵感派数据源改为记录内容；最近任务只取未完成 5 条；本周安排同时画任务和日程、日期可点；月历加每日完成数徽标；完成率口径改为「已完成 ÷ 全部任务」；「连续天数」改名「连续完成」并加脚注；快速记一笔不再把首行当标题；首页问候区加称呼胶囊。
+- **删掉**：首页底部整块「任务看板」（与「最近任务」卡片 + 任务面板重复），连带清理 `usePointerDrag` / `DragGhostLayer` / `cols`。首页高度 4108px → 1670px。
+- **新架构决定**：`lib/habits.ts` 原本 import `node:sqlite`，客户端组件不能引。拆出 `lib/dates.ts`（纯日期算法，不碰 node 内置模块），`lib/habits.ts` 保留查库并 re-export 日期函数，`lib/api/habits` 路由零改动。
+- **踩坑**：`computeBestStreak` 第一次把 `prevDay(sorted[i])` 与 `sorted[i]` 比（永远不成立），应为 `sorted[i-1]`；修复前 bestStreak 恒为 1。
+- **踩坑**：弹层被底部导航压住 —— 遮罩 `z-index:120` 挂在 `main`（`z-index:1` 的层叠上下文）里，根层级的导航 `z:30` / 悬浮笔 `z:50` 反而更高。修法：`body:has(.hb-bf-mask) .side, body:has(.capture-fab) {display:none}` 一类条件样式让开。
+- **保留未改**：任务面板的「多选」按钮（鸿蒙删了，网页端大屏上批量删/批量改状态确实有用，等用户拍板）；AI 助手入口（鸿蒙为上架隐藏，网页端不需要）；深色模式（鸿蒙有，网页端尚无，是大工程）。
+- **文档**：`开发文档.md` 新增第 31 章。

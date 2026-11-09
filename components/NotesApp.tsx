@@ -344,8 +344,13 @@ export default function NotesApp({
           <div className="notes-list scroll-thin">
             {filtered.map((n) => (
               <button key={n.id} className={`note-row ${n.id === activeId ? "on" : ""}`} onClick={() => { setActiveId(n.id); setMEditing(true); }}>
-                <b>{n.pinned ? <Pin size={10} className="nr-pin" /> : null}{n.title || "(无标题)"}</b>
-                {n.content ? <em>{(n.content || "").replace(/[#*`>\-]/g, "").replace(/\s+/g, " ").trim().slice(0, 44)}</em> : null}
+                {/* 没标题就拿正文第一行顶上 —— 快速记一笔存的是空标题，
+                    不能在列表里显示成「(无标题)」 */}
+                <b>
+                  {n.pinned ? <Pin size={10} className="nr-pin" /> : null}
+                  {n.title || (n.content || "").trim().split("\n")[0].slice(0, 30) || "(无标题)"}
+                </b>
+                {n.title && n.content ? <em>{(n.content || "").replace(/[#*`>\-]/g, "").replace(/\s+/g, " ").trim().slice(0, 44)}</em> : null}
                 <span>{n.source} · {format(new Date(n.updated_at), "MM/dd HH:mm")}{n.tags ? ` · ${n.tags}` : ""}</span>
               </button>
             ))}

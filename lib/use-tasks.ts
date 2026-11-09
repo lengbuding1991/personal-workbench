@@ -98,43 +98,6 @@ export function useTasks(initial: Task[]) {
     [router, toast]
   );
 
-  const removeMany = useCallback(
-    async (ids: number[]) => {
-      if (!ids.length) return;
-      setTasks((list) => list.filter((t) => !ids.includes(t.id)));
-      await Promise.all(ids.map((id) => fetch(`/api/tasks/${id}`, { method: "DELETE" })));
-      toast(`已删除 ${ids.length} 件任务`);
-      router.refresh();
-    },
-    [router, toast]
-  );
-
-  const setManyStatus = useCallback(
-    async (ids: number[], status: TaskStatus) => {
-      if (!ids.length) return;
-      setTasks((list) => list.map((t) => (ids.includes(t.id) ? { ...t, status } : t)));
-      await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/tasks/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status }),
-          })
-        )
-      );
-      toast(`已把 ${ids.length} 件任务标记为${status === "done" ? "完成" : status === "doing" ? "进行中" : "待办"}`);
-      router.refresh();
-    },
-    [router, toast]
-  );
-
-  /**
-   * 在同一个状态列里调整顺序。
-   *
-   * 只改本地顺序、随后把整列的 sort 批量写回去。为什么不用「相邻两条交换」：
-   * 拖到屏幕另一头时要发好几次请求，中间断网就会留下半套顺序。
-   * 一次写完整列，要么全成要么全不成。
-   */
   const reorder = useCallback(
     async (status: TaskStatus, orderedIds: number[]) => {
       const prev = tasks;
@@ -154,5 +117,5 @@ export function useTasks(initial: Task[]) {
     [tasks, router, toast]
   );
 
-  return { tasks, setTasks, setStatus, cycle, remove, removeMany, setManyStatus, reorder };
+  return { tasks, setTasks, setStatus, cycle, remove, reorder };
 }

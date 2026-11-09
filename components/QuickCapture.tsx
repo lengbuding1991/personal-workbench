@@ -56,8 +56,10 @@ export default function QuickCapture() {
     if (!text.trim()) return;
     setSaving(true);
     try {
-      const firstLine = text.trim().split("\n")[0].slice(0, 40);
-      await api("/api/notes", { method: "POST", body: { title: firstLine, content: text, source: tag } });
+      /* 以前把第一行截成标题，结果「随手记一笔」写的东西
+         一半变成了标题、正文反而被切开。现在标题留空，
+         全部内容都进正文，列表页会自己取第一行显示。 */
+      await api("/api/notes", { method: "POST", body: { title: "", content: text, source: tag } });
       setText("");
       setOpen(false);
       toast("已记下，存在「记录」里");

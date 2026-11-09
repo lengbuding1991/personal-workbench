@@ -95,7 +95,10 @@ h1{margin:0 0 6px;font-size:32px;line-height:1.25;letter-spacing:-.03em;font-wei
 .score .s{font-size:9.5px;color:var(--dim);margin-top:2px}
 
 /* ---------- KPI row ---------- */
-.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
+/* 习惯卡是链接，hover 要有反馈，不然看起来像坏了 */
+.kpi-link{text-decoration:none;color:inherit;transition:transform .14s ease,box-shadow .14s ease}
+.kpi-link:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(23,52,80,.1)}
 .kpi{background:#fff;border:1px solid #EDF4FA;border-radius:18px;padding:14px 15px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
 .kpi-top{display:flex;align-items:center;gap:8px;font-size:10.5px;color:#8095A8}
 .kpi-ico{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none}
@@ -162,10 +165,16 @@ h1{margin:0 0 6px;font-size:32px;line-height:1.25;letter-spacing:-.03em;font-wei
 .mc-head span{margin-left:auto;font-family:var(--mono);font-size:9px;color:#A8B8C6}
 .mc-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(0,1fr);gap:3px;flex:1;min-height:0}
 .mc-grid .wd{text-align:center;font-size:8.5px;color:#A8B8C6;padding:2px 0 4px;display:flex;align-items:flex-end;justify-content:center}
-.mc-day{position:relative;min-height:26px;display:grid;place-items:center;font-size:10.5px;color:#54697C;border-radius:9px;font-variant-numeric:tabular-nums}
+.mc-day{position:relative;min-height:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:10.5px;color:#54697C;border-radius:9px;font-variant-numeric:tabular-nums;line-height:1.05}
 .mc-day.out{color:#CFDCE7}
 .mc-day.has{background:#F1F8FD;color:#2F6C8A;font-weight:600}
 .mc-day.today{background:linear-gradient(140deg,#4FD3C8,#33A9D6);color:#fff;font-weight:700;box-shadow:0 6px 14px rgba(51,169,214,.28)}
+/* 每天完成了几件：日号下面一个青绿小数字 */
+.mc-n{font-style:normal;font-size:8px;font-weight:700;line-height:1;margin-top:1px;
+  color:#1F9E9A;font-variant-numeric:tabular-nums}
+.mc-day.today .mc-n{color:#EAFBFA}
+.mc-day.has:not(.today) .mc-n{color:#2F8F8A}
 .mc-day i{position:absolute;bottom:3px;width:3px;height:3px;border-radius:50%;background:var(--acc)}
 .mc-day.today i{background:#fff}
 
@@ -180,7 +189,7 @@ h1{margin:0 0 6px;font-size:32px;line-height:1.25;letter-spacing:-.03em;font-wei
 /* summary + quote */
 .summary{display:flex;flex-direction:column;gap:8px;flex:1;min-height:0}
 .summary p{margin:0;font-size:11.5px;line-height:1.85;color:#4E6579}
-.summary .mini-bars{display:flex;align-items:flex-end;gap:6px;height:44px;min-height:44px;margin-top:auto}
+.summary .mini-bars{display:flex;align-items:flex-end;gap:6px;min-height:44px;margin-top:10px;flex:1}
 .summary .mini-bars i{flex:1;border-radius:4px 4px 2px 2px;background:linear-gradient(180deg,#BFEAF8,#E4F4FC)}
 .quote{font-size:12px;line-height:1.95;color:#4E6579;display:flex;gap:9px}
 .quote svg{flex:none;color:var(--acc);margin-top:3px}
@@ -235,13 +244,21 @@ h1{margin:0 0 6px;font-size:32px;line-height:1.25;letter-spacing:-.03em;font-wei
 .arrows button{width:23px;height:23px;border-radius:7px;border:1px solid var(--line);background:#fff;color:#8FA2B3;padding:0;display:grid;place-items:center}
 .arrows button:hover{background:#F5FAFE;border-color:#CFE4F4}
 .w-days{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px}
-.w-days div{text-align:center;font-size:9px;color:#A8B8C6;padding:3px 0}
+/* 日期头是按钮了（点一下只看那天），所以要给按钮的默认样式清干净 */
+.w-days .w-day{text-align:center;font-size:9px;color:#A8B8C6;padding:3px 0;border:none;background:none;
+  cursor:pointer;font-family:inherit;line-height:inherit}
 /* 每个日号都占同样高的 23px 方块，今天只是多一个圆形底色。
    以前今天用的是 display:inline-grid，变成行内元素后不再另起一行，
    结果「04」挤到星期标签那一行、压住了「三」。 */
-.w-days div b{display:grid;place-items:center;width:23px;height:23px;margin:1px auto 0;
+.w-days .w-day b{display:grid;place-items:center;width:23px;height:23px;margin:1px auto 0;
   font-family:var(--mono);font-size:10.5px;color:#5E7183;font-weight:600;border-radius:50%}
-.w-days div.today b{background:linear-gradient(140deg,#4FD3C8,#33A9D6);color:#fff}
+.w-days .w-day.today b{background:linear-gradient(140deg,#4FD3C8,#33A9D6);color:#fff}
+/* 选中的那天：日号加一圈青绿描边，和「今天」的实心底色区分开 */
+.w-days .w-day.picked b{box-shadow:0 0 0 2px #3AC8C2;color:#1F9E9A}
+.w-days .w-day.picked.today b{color:#fff}
+.w-days .w-day:hover b{background:#F1F8FD;color:#2F6C8A}
+.w-days .w-day.today:hover b{background:linear-gradient(140deg,#4FD3C8,#33A9D6);color:#fff}
+.w-days .w-day.picked:hover b{background:#EAF7F6;color:#1F9E9A}
 .w-row{position:relative;height:34px;border-top:1px dashed #EDF4FA}
 .w-row .bar{position:absolute;top:7px;height:20px;border-radius:7px;font-size:9.5px;line-height:20px;padding:0 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .bar.lav{background:#EFE9FE;color:#6B4FD0}
@@ -264,7 +281,6 @@ body.dragging{cursor:grabbing;user-select:none}
   display:flex;align-items:center;gap:8px;max-width:280px;transform:translateY(-4px) rotate(-1.2deg);animation:ghost-in .12s ease-out}
 .drag-ghost .dg-dot{width:6px;height:6px;border-radius:50%;flex:none}
 @keyframes ghost-in{from{opacity:0;transform:translateY(-4px) scale(.96)}to{opacity:1}}
-.tcard.picked{opacity:.5}
 
 .sec-head{display:flex;align-items:center;gap:10px;margin:18px 2px 9px}
 .sec-head h2{margin:0;font-size:13.5px;font-weight:700}
@@ -371,15 +387,6 @@ body.dragging{cursor:grabbing;user-select:none}
   background:#F4F9FD;color:#7FA3BF;padding:0;display:grid;place-items:center;opacity:0;transition:.14s}
 .tcard:hover .card-act{opacity:1}
 .tcard .card-act:hover{background:var(--acc-soft);border-color:var(--acc-line);color:var(--acc-d)}
-.tcard.picked{border-color:var(--acc);box-shadow:0 0 0 2px rgba(58,200,194,.16)}
-.tcard .pick-dot{position:absolute;top:10px;right:9px;width:16px;height:16px;border-radius:50%;border:1.5px solid #D6E4F0;
-  background:#fff;font-size:9px;display:grid;place-items:center;color:var(--acc-d)}
-.tcard.picked .pick-dot{background:var(--acc);border-color:var(--acc);color:#fff}
-.bulk-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--acc-line);
-  border-radius:13px;padding:9px 12px;margin:0 0 12px;box-shadow:0 6px 18px rgba(37,84,133,.06)}
-.bulk-bar b{font-size:11px;font-weight:600;color:var(--acc-d)}
-.bulk-bar .b-small{margin-left:0}
-.bulk-bar .b-small:disabled{opacity:.45;cursor:not-allowed}
 .b-small.danger{background:#FBEDE9;color:#C25E4A}
 .b-small.danger:hover{background:#F8DED7}
 .seg{display:flex;gap:6px;margin-top:5px}
@@ -545,8 +552,6 @@ body.dragging{cursor:grabbing;user-select:none}
   .tcard .card-act{opacity:1}
 }
 @media (max-width:640px){
-  .bulk-bar{gap:6px;padding:8px 10px}
-  .bulk-bar b{width:100%}
   .seg-btn{font-size:12px;padding:8px 0}
 }
 
@@ -687,7 +692,6 @@ body.dragging{cursor:grabbing;user-select:none}
   .page-head .right{margin-left:0}
   .kpis{gap:8px}
   .kpi{padding:11px 12px;border-radius:15px}
-  .kpis > .kpi:nth-child(5){grid-column:span 2}
   .trend .axis{font-size:23px}
   .trend svg{min-height:150px}
   .kpi b{font-size:22px}
@@ -713,6 +717,13 @@ body.dragging{cursor:grabbing;user-select:none}
      不再整屏铺满；打开时把底部导航和悬浮笔让开，避免压住导航条。 */
   body:has(.modal) .side,
   body:has(.modal) .capture-fab{display:none}
+  /* 补卡弹层和「更多」抽屉也在 main 里，而 main 是 z-index:1 的层叠上下文，
+     底部导航(z:30)和悬浮笔(z:50)在根层级 —— 层级比弹层高，会盖在弹层上面。
+     打开这些弹层时把它们让开。 */
+  body:has(.hb-bf-mask) .side,
+  body:has(.hb-bf-mask) .capture-fab,
+  body:has(.m-more-mask) .side,
+  body:has(.m-more-mask) .capture-fab{display:none}
   .modal{padding:0;align-items:flex-end;background:rgba(23,52,80,.32)}
   .modal.qk{padding:14px}
   .sheet{width:100%;border-radius:22px 22px 0 0;padding:20px 18px 0;
@@ -1271,14 +1282,14 @@ body.dragging{cursor:grabbing;user-select:none}
 .heat-cell.l1{background:#BEE7E1}
 .heat-cell.l2{background:#6FD0C2}
 .heat-cell.l3{background:#2E9E92}
-.heat-legend{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:9px;color:#A8B8C6}
+.heat-legend{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:10px;color:#93A6B6}
 .heat-legend span{padding:0 3px}
 
 /* ===== 统计页：30 天柱线 ===== */
 .line30{display:flex;align-items:flex-end;gap:2px;height:64px;padding:2px 0}
 .line30 i{flex:1;min-width:2px;display:block;border-radius:2px 2px 0 0;
   background:linear-gradient(180deg,#6FD0C2,#33A9D6)}
-.line30-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:#A8B8C6;margin-top:4px}
+.line30-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:#8FA4B6;margin-top:5px}
 
 /* ===== 统计页：项目推进 ===== */
 .pj-stat{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #F2F7FB}
@@ -1570,4 +1581,49 @@ input[type="checkbox"].cb:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(5
   .hb-days{gap:3px}
   .hb-dot{width:13px;height:13px}
   .hb-streak,.hb-week{font-size:9.5px}
+}
+
+/* ── 习惯页：30 天补卡网格 ───────────────────────────── */
+.hb-bf-mask{position:fixed;inset:0;z-index:120;background:rgba(23,52,80,.32);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:20px;animation:maskIn .16s ease}
+.hb-bf{width:min(560px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:18px;
+  padding:18px 20px 16px;box-shadow:0 26px 70px rgba(23,52,80,.2);animation:sheetUp .2s ease}
+.hb-bf-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.hb-bf-head>div{flex:1;min-width:0}
+.hb-bf-head b{display:block;font-size:14px;color:#2B4257;font-weight:700}
+.hb-bf-head span{display:block;margin-top:3px;font-size:11px;color:var(--dim)}
+.hb-bf-x{width:26px;height:26px;flex:none;border:none;border-radius:8px;background:#F1F6FA;color:#7C8F9F;
+  font-size:16px;line-height:1;cursor:pointer}
+.hb-bf-x:hover{background:#E7F0F7;color:#4C6278}
+.hb-bf-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:7px}
+.hb-bf-cell{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0 5px;
+  border:1px solid #EAF2F8;border-radius:9px;background:#FBFDFF;cursor:pointer;transition:.13s}
+.hb-bf-cell em{font-style:normal;font-size:10px;color:#5E7183;font-variant-numeric:tabular-nums;line-height:1}
+.hb-bf-cell i{display:block;width:9px;height:9px;border-radius:50%;border:1.5px solid #DCE9F3;background:#fff}
+.hb-bf-cell:hover{border-color:#9ADFD8;background:#F3FBFA}
+.hb-bf-cell.today{box-shadow:0 0 0 1.5px rgba(58,200,194,.34)}
+.hb-bf-cell.on{border-color:#CFEEEB;background:#F4FCFB}
+.hb-bf-cell.on em{color:#2F7D78;font-weight:600}
+.hb-bf-foot{margin-top:13px;font-size:10.5px;color:var(--dim);line-height:1.6}
+@media(max-width:640px){
+  .hb-bf-mask{align-items:flex-end;padding:0}
+  .hb-bf{width:100%;max-height:86vh;border-radius:20px 20px 0 0;
+    /* 底部导航 60px 高，弹层内容不能被压在它底下 */
+    padding:16px 16px calc(76px + env(safe-area-inset-bottom))}
+  .hb-bf-grid{grid-template-columns:repeat(6,1fr);gap:8px}
+  .hb-bf-cell{padding:8px 0 7px}
+  .hb-bf-cell em{font-size:11px}
+  .hb-bf-cell i{width:11px;height:11px}
+}
+
+/* ── 首页问候区：称呼胶囊 ─────────────────────────────── */
+.hello-eyebrow{display:flex;align-items:center;gap:10px}
+.name-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;
+  background:var(--acc-soft);color:var(--acc-d);font-size:9.5px;font-weight:600;text-decoration:none;
+  white-space:nowrap;max-width:140px;overflow:hidden;transition:.14s}
+.name-chip:hover{background:#DFF3F0}
+.name-chip svg{flex:none}
+@media(max-width:640px){
+  .hello-eyebrow{gap:8px}
+  .name-chip{padding:3px 8px;font-size:9px;max-width:104px}
 }

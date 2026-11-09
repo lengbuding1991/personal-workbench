@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Flame, Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, Check, Flame, Pencil, Plus, Trash2 } from "lucide-react";
 import TopBar from "./TopBar";
 import { useToast } from "./Toast";
 import { useConfirm } from "./Confirm";
 import { api, errText } from "@/lib/api";
 import type { HabitView } from "@/lib/habits";
+import { computeBestStreak, computeStreak } from "@/lib/dates";
 
 type Payload = { today: string; days: string[]; habits: HabitView[] };
 
@@ -28,11 +29,32 @@ export default function HabitsApp({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ id: number; value: string } | null>(null);
+  /* 补卡窗口：一次铺开最近 30 天，比只给 7 个圆点实用得多 */
+  const [backfillId, setBackfillId] = useState<number | null>(null);
   const toast = useToast();
   const ask = useConfirm();
 
   const doneCount = habits.filter((h) => h.doneToday).length;
-  const bestStreak = habits.reduce((n, h) => Math.max(n, h.streak), 0);
+  /* 「最长 N 天」是成就，不是现在的连续 —— 断了也不该归零，
+     所以这里取 bestStreak（历史最长），当前连续在每行的火苗上显示 */
+  const bestStreak = habits.reduce((n, h) => Math.max(n, h.bestStreak), 0);
+
+  /* 补卡弹层里的习惯要从最新 habits 里取，否则打一次卡弹层里的
+     已打卡状态就过期了 */
+  const backfill = backfillId === null ? null : habits.find((h) => h.id === backfillId) ?? null;
+
+  /** 最近 30 天（含今天），旧→新 */
+  const last30 = useMemo(() => {
+    const out: string[] = [];
+    const now = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      out.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    }
+    return out;
+  }, []);
 
   function sync(p: Partial<Payload>) {
     if (p.habits) setHabits(p.habits);
@@ -43,12 +65,14 @@ export default function HabitsApp({
   /** 先改界面再发请求：勾一下要立刻有反馈，失败了再退回去 */
   function optimistic(h: HabitView, date: string, wasOn: boolean): HabitView {
     const logs = wasOn ? h.logs.filter((d) => d !== date) : [...h.logs, date].sort();
+    const set = new Set(logs);
     return {
       ...h,
       logs,
       weekDone: days.filter((d) => logs.includes(d)).length,
       doneToday: date === today ? !wasOn : h.doneToday,
-      streak: date === today ? Math.max(0, h.streak + (wasOn ? -1 : 1)) : h.streak,
+      streak: computeStreak(set, today),
+      bestStreak: computeBestStreak(logs),
     };
   }
 
@@ -157,9 +181,9 @@ export default function HabitsApp({
             <i style={{ width: `${habits.length ? (doneCount / habits.length) * 100 : 0}%` }} />
           </div>
         </div>
-        <div className="hb-sum-best">
+        <div className="hb-sum-best" title="历史上最长连续打卡的天数，断掉也不会清零">
           <Flame size={12} />
-          <span>最长 {bestStreak} 天</span>
+          <span>历史最长 {bestStreak} 天</span>
         </div>
       </section>
 
@@ -216,6 +240,14 @@ export default function HabitsApp({
                 )}
 
                 <div className="hb-acts">
+                  <button
+                    className="hb-ico"
+                    onClick={() => setBackfillId(h.id)}
+                    aria-label={`补「${h.name}」更早的打卡`}
+                    title="补最近 30 天"
+                  >
+                    <CalendarDays size={12} />
+                  </button>
                   <button className="hb-ico" onClick={() => startEdit(h)} aria-label={`改「${h.name}」的名字`}>
                     <Pencil size={12} />
                   </button>
@@ -252,7 +284,47 @@ export default function HabitsApp({
         </div>
       )}
 
-      <p className="hb-tip">连续天数在今天还没打卡时从昨天算起，断一天就重新数。点小圆点可以补最近 7 天。</p>
+      {backfill && (
+        <div className="hb-bf-mask" onClick={() => setBackfillId(null)}>
+          <div className="hb-bf" onClick={(e) => e.stopPropagation()}>
+            <div className="hb-bf-head">
+              <div>
+                <b>补「{backfill.name}」的打卡</b>
+                <span>最近 30 天，点一下补上，再点一下取消</span>
+              </div>
+              <button className="hb-bf-x" onClick={() => setBackfillId(null)} aria-label="关闭">
+                ×
+              </button>
+            </div>
+            <div className="hb-bf-grid">
+              {last30.map((d) => {
+                const on = backfill.logs.includes(d);
+                const isToday = d === today;
+                return (
+                  <button
+                    key={d}
+                    className={`hb-bf-cell ${on ? "on" : ""} ${isToday ? "today" : ""}`}
+                    onClick={() => void toggle(backfill, d)}
+                    title={`${d.slice(5)} ${on ? "已打卡，点击取消" : "未打卡，点击补上"}`}
+                    aria-label={`${d} ${on ? "已打卡" : "未打卡"}`}
+                  >
+                    <em>{Number(d.slice(8))}</em>
+                    <i style={on ? { background: backfill.color, borderColor: backfill.color } : undefined} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="hb-bf-foot">
+              <span>30 天前的记录算不进「历史最长」，但打卡本身会保留。</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="hb-tip">
+        连续天数在今天还没打卡时从昨天算起，断一天就重新数。点小圆点可以补最近 7 天，点
+        <CalendarDays size={11} style={{ verticalAlign: -1 }} /> 可以补最近 30 天。
+      </p>
     </>
   );
 }

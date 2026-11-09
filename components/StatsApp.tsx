@@ -7,6 +7,16 @@ import TopBar from "./TopBar";
 const areaLabel: Record<string, string> = { work: "工作", side: "副业", media: "自媒体", study: "学习", life: "生活" };
 const areaColor: Record<string, string> = { work: "#5AA7E8", side: "#A78BFA", media: "#F5AE8E", study: "#6FD6BE", life: "#F6C453" };
 
+/** "11/09" 或 "2026-11-09" → "11月9日"，比裸日期串好读 */
+const fmtDay = (d?: string) => {
+  if (!d) return "";
+  const m = d.match(/(\d{1,2})\/(\d{1,2})/);
+  if (m) return `${Number(m[1])}月${Number(m[2])}日`;
+  const iso = d.match(/\d{4}-(\d{2})-(\d{2})/);
+  if (iso) return `${Number(iso[1])}月${Number(iso[2])}日`;
+  return d;
+};
+
 export default function StatsApp({
   total,
   done,
@@ -130,11 +140,13 @@ export default function StatsApp({
               </div>
               <div className="heat-legend">
                 <span>少</span>
+                {/* 色阶说明写清楚，不然「多」到底是几件没人知道 */}
                 <i className="heat-cell l0" />
                 <i className="heat-cell l1" />
                 <i className="heat-cell l2" />
                 <i className="heat-cell l3" />
                 <span>多</span>
+                <span style={{ marginLeft: 6 }}>· 颜色越深，那天完成的事越多</span>
               </div>
             </div>
           </div>
@@ -155,7 +167,13 @@ export default function StatsApp({
                 );
               })}
             </div>
-            <div className="line30-x"><span>{series30[0]?.date}</span><span>{series30[series30.length - 1]?.date}</span></div>
+            {/* 轴标签给三段：开头、中间、结尾。只给首尾的话，
+                中间那一个月在哪儿完全看不出来。 */}
+            <div className="line30-x">
+              <span>{fmtDay(series30[0]?.date)}</span>
+              <span>{fmtDay(series30[Math.floor(series30.length / 2)]?.date)}</span>
+              <span>{fmtDay(series30[series30.length - 1]?.date)}</span>
+            </div>
           </div>
         </section>
 

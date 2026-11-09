@@ -34,14 +34,25 @@
     "note": "2026-11-05 按用户要求整段撤掉：删了 app/manifest.ts、public/sw.js、public/offline.html、5 个图标、components/ServiceWorkerRegister.tsx、scripts/gen_pwa_icons.py，并还原 app/layout.tsx 的 manifest/appleWebApp/icons/themeColor 与 middleware.ts 的放行项。工作台回到普通网页模式（浏览器里直接用，不安装到主屏）。"
   },
   "qa": {
-    "round": "第三十轮：清理无效文件（死 CSS / 失效 script / 无引用截图）",
+    "round": "第三十一轮：照着鸿蒙版回头完善网页端（2026-11-09）",
     "status": "verified",
     "unverified": [
-      "真机 iPhone/iPad 实测",
-      "手机端弹窗底部抽屉样式真机实测",
+      "真机 iPhone / iPad 实测",
       "备份恢复演练",
-      "DeepSeek Key 未填（AI 功能灰）",
-      "每日习惯真机实测（打勾 / 补卡 / 连续天数）"
+      "AI 真实调用（DeepSeek Key 用户已配置好，但本轮未跑真实请求）",
+      "R55 多选按钮是否同步删除（待用户拍板）",
+      "深色模式（网页端尚无）"
+    ],
+    "verified": [
+      "pnpm exec tsc --noEmit 通过",
+      "pnpm build 通过（Compiled successfully in 2.6s）",
+      "桌面 1440 + 手机 390 各 11 页回归：无错误页、无横向溢出、原生 select 为 0",
+      "首页 KPI 6 张（含习惯打卡卡）、称呼胶囊 Hina、灵感派取记录内容、最近任务只显示未完成 5 条",
+      "本周安排：任务+日程一起画、日期可点、每日完成数徽标",
+      "习惯页：历史最长 2 天、30 格补卡网格（6 列）、本周 N/7 同源",
+      "看板计数即时刷新 3/1/1 → 2/1/2",
+      "补卡弹层层级：h=422 bottom=844 不被底部导航压住",
+      "首页删除任务看板后高度 4108px → 1670px"
     ]
   },
   "deploy": {
@@ -72,7 +83,13 @@
     "image": "ghcr.io/lengbuding1991/personal-workbench:latest",
     "current_sha": "449305f90173dc4c5ce79490c15ab7477d8c96a7",
     "current_built": "2026-11-05 10:50",
-    "version_source": "镜像内 /app/VERSION 文件"
+    "version_source": "镜像内 /app/VERSION 文件",
+    "verify": {
+      "typecheck": "pass",
+      "build": "pass",
+      "pages": "11/11 x desktop+mobile",
+      "at": "2026-11-09"
+    }
   },
   "features": {
     "project_system": {
@@ -114,5 +131,8 @@
   },
   "docs": {
     "full_guide": "全流程手册-从开发到上线.md"
+  },
+  "habits": {
+    "note": "LOOKBACK 365 天 + bestStreak（成就语义，断掉不归零）+ 30 天补卡网格；纯日期算法拆到 lib/dates.ts（不 import node:sqlite，客户端组件可用）"
   }
 }

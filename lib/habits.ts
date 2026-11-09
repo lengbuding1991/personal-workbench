@@ -1,6 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
-import { format, parseISO, subDays } from "date-fns";
+import { format, subDays } from "date-fns";
 import { rows } from "@/lib/db";
+import { computeBestStreak, computeStreak, dayKey, lastDays } from "@/lib/dates";
+
+/* 纯日期算法放在 lib/dates.ts（客户端组件也要用），这里转出去给服务端引用 */
+export { dayKey, lastDays, computeStreak, computeBestStreak } from "@/lib/dates";
 
 export type Habit = {
   id: number;
@@ -12,50 +16,29 @@ export type Habit = {
 };
 
 export type HabitView = Habit & {
-  /** 最近 60 天里打过卡的日期（旧→新） */
+  /** 回看窗口内打过卡的日期（旧→新） */
   logs: string[];
-  /** 当前连续天数 */
+  /** 当前连续天数（断了会归零） */
   streak: number;
+  /** 历史最长连续天数（成就，不会归零） */
+  bestStreak: number;
   doneToday: boolean;
-  /** 最近 7 天完成了几天 */
+  /** 本周（周一→周日）完成了几天 */
   weekDone: number;
 };
 
-/** 只回看 60 天：习惯的意义在最近，查全表没意义 */
-export const LOOKBACK = 60;
-
-export function dayKey(d: Date = new Date()) {
-  return format(d, "yyyy-MM-dd");
-}
-
-/** 最近 n 天的日期，旧→新，最后一个是今天 */
-export function lastDays(n: number, end: Date = new Date()) {
-  const out: string[] = [];
-  for (let i = n - 1; i >= 0; i--) out.push(format(subDays(end, i), "yyyy-MM-dd"));
-  return out;
-}
-
-export function prevDay(key: string) {
-  return format(subDays(parseISO(key), 1), "yyyy-MM-dd");
-}
-
 /**
- * 连续天数。
+ * 回看窗口。
  *
- * 今天还没打卡时从昨天往前数 —— 否则零点一过连续天数就「归零」，
- * 用户会以为记录丢了。中间断一天就停，不做宽容。
+ * 60 天是拍脑袋定的，鸿蒙端改成了 365 天 —— 因为要算「历史最长连续」，
+ * 窗口太短就永远算不出真正的成就（一个人半年前连了 40 天，60 天窗口里看不见）。
  */
-export function computeStreak(dates: Set<string>, today: string) {
-  let cursor = dates.has(today) ? today : prevDay(today);
-  let n = 0;
-  while (dates.has(cursor)) {
-    n += 1;
-    cursor = prevDay(cursor);
-  }
-  return n;
-}
+export const LOOKBACK = 365;
 
-/** 一次查齐所有习惯 + 最近 60 天打卡，页面和接口共用 */
+/** 补卡网格一次展示多少天 */
+export const BACKFILL_DAYS = 30;
+
+/** 一次查齐所有习惯 + 回看窗口内的打卡，页面和接口共用 */
 export function loadHabits(db: DatabaseSync) {
   const today = dayKey();
   const since = format(subDays(new Date(), LOOKBACK - 1), "yyyy-MM-dd");
@@ -73,13 +56,17 @@ export function loadHabits(db: DatabaseSync) {
     set.add(l.date);
   }
 
+  // 本周窗口必须和圆点画的那一周同源，
+  // 否则会出现「本周 3/7」但圆点只亮 1 个。
   const week = lastDays(7);
   const habits: HabitView[] = list.map((h) => {
     const set = byHabit.get(h.id) ?? new Set<string>();
+    const dates = [...set].sort();
     return {
       ...h,
-      logs: [...set].sort(),
+      logs: dates,
       streak: computeStreak(set, today),
+      bestStreak: computeBestStreak(dates),
       doneToday: set.has(today),
       weekDone: week.filter((d) => set.has(d)).length,
     };

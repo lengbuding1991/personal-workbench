@@ -17,3 +17,6 @@ data/backups
 
 # Docker 部署：数据库与备份不进仓库（NAS 上由 compose 挂卷）
 /data/
+
+# Hindsight 记忆目录，不进仓库
+.memsearch/

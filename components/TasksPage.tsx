@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { endOfWeek, format, isBefore, isSameDay, isWithinInterval, parseISO, startOfDay, startOfWeek, subDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { Check, ListChecks, Play, Plus, X } from "lucide-react";
+import { Play, Plus } from "lucide-react";
 import type { Task, Area, TaskStatus } from "@/lib/db";
 import { useTasks } from "@/lib/use-tasks";
 import { usePointerDrag } from "@/lib/use-pointer-drag";
@@ -41,7 +41,7 @@ export default function TasksPage({
 }) {
   const params = useSearchParams();
   const confirm = useConfirm();
-  const { tasks, cycle, setStatus, remove, removeMany, setManyStatus, reorder } = useTasks(initial);
+  const { tasks, cycle, setStatus, remove, reorder } = useTasks(initial);
   const [area, setArea] = useState<Area | "all">("all");
   const [q, setQ] = useState("");
   const [due, setDue] = useState<"all" | "today" | "week" | "overdue">("all");
@@ -55,8 +55,6 @@ export default function TasksPage({
    */
   const [groupBy, setGroupBy] = useState<"status" | "project" | "area">("status");
   const [modal, setModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
-  const [picking, setPicking] = useState(false);
-  const [picked, setPicked] = useState<number[]>([]);
   const [hoverCol, setHoverCol] = useState<TaskStatus | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   /*
@@ -200,41 +198,9 @@ export default function TasksPage({
     (t) => t.status !== "done" && t.due_date && isBefore(parseISO(t.due_date), startOfDay(new Date()))
   ).length;
 
-  const togglePick = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-
-  const exitPicking = () => {
-    setPicking(false);
-    setPicked([]);
-  };
-
-  const batchDone = async () => {
-    await setManyStatus(picked, "done");
-    exitPicking();
-  };
-
-  const batchRemove = async () => {
-    const ok = await confirm({
-      title: `删除这 ${picked.length} 件任务？`,
-      desc: "删除后无法恢复。如果只是不想看了，可以先标记完成。",
-      confirmText: "删除",
-      danger: true,
-    });
-    if (!ok) return;
-    await removeMany(picked);
-    exitPicking();
-  };
-
   return (
     <>
       <TopBar crumb="任务">
-        <button
-          className="ghost"
-          style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}
-          onClick={() => (picking ? exitPicking() : setPicking(true))}
-        >
-          {picking ? <X size={12} /> : <ListChecks size={12} />}
-          {picking ? "退出多选" : "多选"}
-        </button>
         <button
           className="primary"
           style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}
@@ -322,30 +288,6 @@ export default function TasksPage({
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索任务…" style={{ marginLeft: "auto" }} />
       </div>
 
-      {picking && (
-        <div className="bulk-bar">
-          <b>已选 {picked.length} 件</b>
-          <button className="b-small" disabled={!picked.length} onClick={batchDone}>
-            <Check size={10} style={{ verticalAlign: -1, marginRight: 3 }} />标记完成
-          </button>
-          <button
-            className="b-small"
-            disabled={!picked.length}
-            onClick={() => setManyStatus(picked, "doing").then(exitPicking)}
-          >
-            <Play size={10} style={{ verticalAlign: -1, marginRight: 3 }} />设为进行中
-          </button>
-          <button className="b-small danger" disabled={!picked.length} onClick={batchRemove}>删除</button>
-          <button
-            className="b-small"
-            onClick={() => setPicked(filtered.filter((t) => t.status !== "done").map((t) => t.id))}
-          >
-            全选未完成
-          </button>
-          <button className="b-small" onClick={() => setPicked([])}>清空选择</button>
-        </div>
-      )}
-
       <div className="kanban kanban-page">
         {groupCols.map((c) => {
           const list = filtered.filter(c.test);
@@ -372,11 +314,10 @@ export default function TasksPage({
               </div>
               {shown.map((t) => (
                 <div
-                  className={`tcard ${t.status === "done" ? "done" : ""} ${picked.includes(t.id) ? "picked" : ""} ${ghost && dragId === t.id ? "lifted" : ""} ${flash === t.id ? "flash" : ""}`}
+                  className={`tcard ${t.status === "done" ? "done" : ""} ${ghost && dragId === t.id ? "lifted" : ""} ${flash === t.id ? "flash" : ""}`}
                   key={t.id}
                   data-task-id={t.id}
                   onPointerDown={(e) => {
-                    if (picking) return;
                     const target = e.target as HTMLElement;
                     if (target.closest("button")) return;
                     setDragId(t.id);
@@ -387,8 +328,7 @@ export default function TasksPage({
                       didDrag.current = false;
                       return;
                     }
-                    if (picking) togglePick(t.id);
-                    else setModal({ open: true, task: t });
+                    setModal({ open: true, task: t });
                   }}
                 >
                   <div className="ct">{t.title}</div>
@@ -427,21 +367,18 @@ export default function TasksPage({
                       ) : null}
                     </div>
                   ) : null}
-                  {!picking && t.status === "todo" && (
+                  {t.status === "todo" && (
                     <button className="card-act" title="开始做" onClick={(e) => { e.stopPropagation(); setStatus(t, "doing"); }}>
                       <Play size={9} />
                     </button>
                   )}
-                  {!picking && (
-                    <button
+                  <button
                       className="check"
                       aria-label={t.status === "done" ? "退回待办" : "标记完成"}
                       onClick={(e) => { e.stopPropagation(); cycle(t); }}
                     >
                       ✓
                     </button>
-                  )}
-                  {picking && <span className="pick-dot">{picked.includes(t.id) ? "✓" : ""}</span>}
                 </div>
               ))}
               {collapsed && (
